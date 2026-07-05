@@ -11,5 +11,5 @@ Data source: [NOAA NCEI Storm Events Database](https://www.ncei.noaa.gov/stormev
 - **`StormEvents_Cleaning_used.ipynb`** — cleans the raw dataset (fills missing values, drops unused columns) and produces three dataframes:
   - a tabular-only dataframe
   - a dataframe with both tabular and text data rows
-  - a final dataframe, used in all subsequent processing steps
-- **`StormEvents_filling_text_generation_used.ipynb`** and **`StormEvents_residual_text_generation_used.ipynb`** — complete the two free-text columns in the cleaned dataset via text generation.
+  - a cleaned dataframe, used in all subsequent processing steps
+- **`StormEvents_filling_text_generation_used.ipynb`** and **`StormEvents_residual_text_generation_used.ipynb`** — fill the two free-text columns in the cleaned dataset via text generation.
