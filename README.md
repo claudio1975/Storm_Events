@@ -41,6 +41,7 @@ The scripts and notebooks are numbered in the order they run.
    Each label is defined explicitly in the system prompt (e.g. `high` = deaths, injuries or major destruction occurred or were clearly likely) so the classification stays consistent across the whole dataset, and the model is instructed to judge only what the text states rather than assume unmentioned impacts.
 7. **`7_export_github.py`** Splits the datasets into compressed Parquet parts small enough for GitHub and writes them to the `data/` folder.
 8. **`8_EDA_used.ipynb`** Exploratory analysis of the final dataset: coverage over time, event-group composition, geography, damage and casualty trends, stationarity and seasonality of the monthly series, and the categorical drivers of impact. Some pictures below come from this notebook.
+9. **`9_global_prediction_used.ipynb`** Trains a per-event, daily-granularity model to forecast `INJURIES_DIRECT`, `INJURIES_INDIRECT`, `DEATHS_DIRECT` and `DEATHS_INDIRECT`, reading the augmented dataset straight from the parquet files in `data/`. The data is split by date first (train through 2023, calibration 2024, test 2025) and only then filtered for zero-variance and redundant features using training rows alone, so no test information leaks into the design matrix. Poisson-family models are tuned by expanding-window cross-validation and compared: a Poisson GLM, LightGBM, an LSTM over each event group's recent history, and TabPFN in-context learning. Every model is backtested on the same folds it was tuned on and produces 90% adaptive conformal intervals. Some pictures below come from this notebook.
 
 ## What the data looks like
 
@@ -67,6 +68,37 @@ Second, the **start years confirm the collection-regime story**: `Tornado` start
 A 60,000-point sample of event coordinates over the continental U.S. The density map matches known U.S. severe-weather climatology: a dense core across the Great Plains and the Midwest into the Southeast (Tornado Alley and Dixie Alley), heavy coverage along the Gulf and Atlantic coasts and the Florida peninsula, and a comparatively sparse, clustered West where events concentrate around populated valleys and mountain corridors.
 
 Part of that east/west contrast is meteorological and part is **reporting bias**: storm events are recorded when someone observes and reports them, so sparsely populated areas generate fewer records for the same weather. 
+
+## Modeling results
+
+Poisson GLM, LightGBM, LSTM and TabPFN are trained on the same daily, per-event targets and compared on a held-out 2025 test split. Only the headline comparison charts and the best-representative model's plots are shown here; the notebook itself repeats the full set of diagnostics (monthly actual-vs-predicted, conformal intervals, backtesting) for every model.
+
+### Model comparison
+
+![Point metrics comparison by target and split](images/Models_Comparison_Metrics.png)
+
+D2, RMSE and MPD across the four targets, split by train / calibration / test. On the test split (top-right panel, the one that matters), **LightGBM and LSTM are the two strongest models, splitting the lead**: LightGBM wins `INJURIES_DIRECT` clearly and `INJURIES_INDIRECT` narrowly, while LSTM wins the two `DEATHS_*` targets narrowly. GLM and TabPFN trail behind on every target. No single model dominates, which is why all four are kept and compared rather than picking one upfront.
+
+![Conformal coverage and relative width by target](images/Models_Comparison_Conformal.png)
+
+Coverage of the 90% adaptive conformal intervals sits close to the nominal line for every model, confirming the uncertainty bands are well calibrated rather than just narrow. **LightGBM produces the tightest intervals** (lowest relative width) on 3 of the 4 targets, sometimes by a wide margin.
+
+### An overview on performance
+
+The aggregate test-split D2 above is close between LightGBM and LSTM, so it alone doesn't settle which is the better choice. Two more views tip the balance toward **LightGBM**:
+
+- **Backtesting** (expanding-window, 2019–2023, same folds used for tuning): LightGBM beats LSTM on `INJURIES_DIRECT` in every single one of the 5 backtest years on both D2 and MPD, by a wide margin. The other three targets split narrowly between the two models, year by year.
+- **Per-event-group breakdown**: comparing the two models' MPD (44: event-group × target combinations), LightGBM has the lower, better MPD in 28 of them against LSTM's 15.
+
+LightGBM is therefore the more consistently reliable model overall, even though LSTM edges it out narrowly on the two death-related targets. `INJURIES_DIRECT` is where that reliability shows up most clearly, so it's the target attached below.
+
+![LightGBM backtest metrics by validation year, Injuries Direct](images/LightGBM_Backtest_Metrics_Injuries_Direct.png)
+
+D2, RMSE and MPD for each of the 5 expanding-window backtest years (2019–2023) on `INJURIES_DIRECT`. D2 stays positive and in a consistent range every year; RMSE and MPD are flat and low through 2021, then rise in 2022–2023 as the raw event counts themselves become larger and more volatile in the later years, not because the model degrades in any structural way.
+
+![LightGBM monthly conformal intervals by event group, Injuries Direct, 2025](images/LightGBM_Conformal_by_Event_Injuries_Direct.png)
+
+The 90% adaptive conformal interval for `INJURIES_DIRECT` in the 2025 test year, broken down by event group. Frequent, well-populated groups (`Winter_Storm`, `High_Wind`, `Flooding`) get bands that track the actual monthly counts. Rare groups (`Tropical_Cyclone`, `Avalanche`) get much wider, noisier bands, and occasional one-off spikes (`Extreme_Heat`) fall outside even a 90% band entirely, a direct, visual consequence of the same data-scarcity problem that also produces the undefined D2 scores for `Drought` and `Tropical_Cyclone` seen elsewhere in the notebook.
 
 ## Data files
 
