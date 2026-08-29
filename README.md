@@ -44,7 +44,7 @@ The scripts and notebooks are numbered in the order they run.
 9. **`9_Global_Prediction_used_count.ipynb`**, **`9_Thunderstorm_prediction_used_count.ipynb`**, **`9_Tornado_prediction_used_count.ipynb`** Three parallel modelling notebooks that share one design and differ only in the slice of the database they cover. The split follows the collection-regime problem described above: Tornado and Thunderstorm have event records long before 1996, so they are modelled separately, while the remaining event groups are modelled together from 1996 onward.
 
    | Notebook | Scope | Period | Events 
-   |---|---|---|---|---|
+   |---|---|---|---|
    | `9_Global_…` | the 11 event groups left after removing Tornado, Thunderstorm and the four almost-empty groups (`Geomagnetic`, `Volcanic`, `Tsunami`, `Marine_Other`) | 1996–2025 | 888,673 
    | `9_Thunderstorm_…` | `Thunderstorm` only (thunderstorm wind, hail) | 1955–2025 | 1,032,841 
    | `9_Tornado_…` | `Tornado` only | 1950–2025 | 90,255 
