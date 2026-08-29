@@ -46,8 +46,8 @@ The scripts and notebooks are numbered in the order they run.
    | Notebook | Scope | Period | Events 
    |---|---|---|---|
    | `9_Global_…` | the 11 event groups left after removing Tornado, Thunderstorm and the four almost-empty groups (`Geomagnetic`, `Volcanic`, `Tsunami`, `Marine_Other`) | 1996–2025 | 888,673 
-   | `9_Thunderstorm_…` | `Thunderstorm` only (thunderstorm wind, hail) | 1955–2025 | 1,032,841 
-   | `9_Tornado_…` | `Tornado` only | 1950–2025 | 90,255 
+   | `9_Thunderstorm_…` | `Thunderstorm` | 1955–2025 | 1,032,841 
+   | `9_Tornado_…` | `Tornado` | 1950–2025 | 90,255 
 
    All three read the augmented dataset straight from the parquet files in `data/` and follow the same protocol. The data is **split by date first** (train through 2023, calibration 2024, test 2025) and only then filtered for zero-variance, redundant and high-cardinality features **using training rows alone**, so no test information reaches the design matrix. The GLM, LightGBM and LSTM hyperparameters are selected with expanding-window cross-validation over validation years, minimizing mean Poisson deviance. TabPFN-3 uses a fixed in-context configuration with a target-stratified context of up to 50,000 training rows, prioritising positive casualty cases and sampling zeros to fill the context. All four models are then backtested on the same expanding-window folds. Every model is backtested on the same expanding-window folds it was tuned on and produces 90% adaptive conformal intervals. Some pictures below come from these notebooks.
 
