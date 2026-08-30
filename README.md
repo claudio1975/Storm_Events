@@ -137,13 +137,13 @@ The same five expanding-window folds as the global slice (train ≤ 2018 → pre
 Two things come out of it:
 
 - **On `INJURIES_DIRECT` the three nonlinear models are stable and close to interchangeable.** LightGBM, the LSTM and TabPFN-3 are positive in all five years and stay in a narrow range; TabPFN-3 is ahead in three years, LightGBM in the other two, and in every year the distance between them is small. The gap that repeats is the one against the GLM, which is roughly half as good year after year. Unlike the global slice, backtesting and the 2025 test split agree here: on a large, homogeneous slice the ranking does not depend on which year you look at.
-- **On `DEATHS_DIRECT` LightGBM is the most consistent model**, best in four of the five years, and again nothing ever turns negative. The one real movement in the whole thunderstorm backtest is here: the level starts near 0.48 in 2019–2020 and drifts down to about 0.37 by 2023 — for all four models at once, which makes it a property of those years rather than of any algorithm. This is also the sparser of the two targets in this slice, with roughly 34–50 events carrying at least one death per year against 96–139 carrying an injury, the mirror image of the global slice, so its yearly score is the more sensitive of the two.
+- **On `DEATHS_DIRECT` LightGBM is the most consistent model**, best in four of the five years, and again nothing ever turns negative. The one real movement in the whole thunderstorm backtest is here: the level starts near 0.48 in 2019–2020 and drifts down to about 0.37 by 2023, for all four models at once, which makes it a property of those years rather than of any algorithm. 
 
 ![LightGBM backtest metrics by validation year, injuries direct, thunderstorm model](images/Thunderstorm_LightGBM_Backtest_Metrics_Injuries_Direct.png)
 
 ![LightGBM backtest metrics by validation year, deaths direct, thunderstorm model](images/Thunderstorm_LightGBM_Backtest_Metrics_Deaths_Direct.png)
 
-The two panels are the visual contrast with the global slice: no year collapses, and the metrics stay on the same scale from 2019 to 2023. On `DEATHS_DIRECT` all three metrics are essentially flat. On `INJURIES_DIRECT` only RMSE moves, tracking the severity of each year's worst outbreaks (highest in 2020 and 2023), while D2 and MPD barely react — the same reason the ranking here is read on D2 and MPD.
+The two panels are the visual contrast with the global slice: no year collapses, and the metrics stay on the same scale from 2019 to 2023. On `DEATHS_DIRECT` all three metrics are essentially flat. On `INJURIES_DIRECT` only RMSE moves, tracking the severity of each year's worst outbreaks (highest in 2020 and 2023), while D2 and MPD barely react, the same reason the ranking here is read on D2 and MPD.
 
 #### Conformal intervals over the year — `INJURIES_DIRECT` and `DEATHS_DIRECT`
 
@@ -151,11 +151,11 @@ Thunderstorm is a single event group, so there is no per-group breakdown to make
 
 ![LightGBM monthly conformal intervals, injuries direct, 2025, thunderstorm model](images/Thunderstorm_LightGBM_Conformal_Monthly_Injuries_Direct.png)
 
-`INJURIES_DIRECT` in the 2025 test year. The slice has a strong, clean seasonality — the season builds from February, peaks in June, decays through the autumn — and the band follows that shape instead of staying flat, widening exactly where the risk concentrates. The actual monthly total stays inside the interval in every month of the year, the June peak included (77 injuries against a ceiling near 82). The predicted line sits below the actual at the spring and summer peaks, so the model under-calls the level while the interval still contains it, which is precisely what the conformal layer is there to provide.
+`INJURIES_DIRECT` in the 2025 test year. The slice has a strong, clean seasonality, the season builds from February, peaks in June, decays through the autumn, and the band follows that shape instead of staying flat, widening exactly where the risk concentrates. The actual monthly total stays inside the interval in every month of the year, the June peak included. The predicted line sits below the actual at the spring and summer peaks, so the model under-calls the level while the interval still contains it, which is precisely what the conformal layer is there to provide.
 
 ![LightGBM monthly conformal intervals, deaths direct, 2025, thunderstorm model](images/Thunderstorm_LightGBM_Conformal_Monthly_Deaths_Direct.png)
 
-`DEATHS_DIRECT` shows the same seasonal shape on a much smaller scale, and one month escapes: June, the peak of the season, with 20 deaths against a band ceiling near 17.5. Every other month is inside. With only a few dozen death-carrying events per year in this slice, a single severe June outbreak is exactly the kind of episode the interval cannot anticipate — the same scarcity effect seen in the global slice, but confined to one month here instead of scattered across the rare event groups.
+`DEATHS_DIRECT` shows the same seasonal shape on a much smaller scale, and one month escapes: June, the peak of the season, with 20 deaths against a band ceiling near 17.5. Every other month is inside. With only a few dozen death-carrying events per year in this slice, a single severe June outbreak is exactly the kind of episode the interval cannot anticipate, the same scarcity effect seen in the global slice, but confined to one month here instead of scattered across the rare event groups.
 
 ### Tornado — 1950–2025
 
@@ -166,6 +166,33 @@ The hardest slice, with only 1,776 events in the 2025 test year. **TabPFN-3 is t
 ![Conformal coverage and relative width by target, tornado model](images/Tornado_Models_Comparison_Conformal.png)
 
 Coverage stays at or above nominal for every model, but the intervals are are relatively larger than in the global notebook, and the relative width for `DEATHS_INDIRECT` is undefined because the actual total is zero all year.
+
+#### Backtesting comparison — `INJURIES_DIRECT` and `DEATHS_DIRECT`
+
+The same five expanding-window folds, on the thinnest slice of the three: each validation year holds only about 1,500–2,100 tornado events, of which 71–97 carry an injury and 14–31 a death.
+
+Two things come out of it:
+
+- **The 2025 test year is harder than any of the five backtest years.** On `INJURIES_DIRECT` the models score between 0.42 and 0.68 in every backtest year — LightGBM best in four of the five, TabPFN-3 in 2022, the two always close — against the 0.22 reported above on the 2025 test split. Same models, same protocol, so the modest test-split figure is a property of 2025 rather than evidence that the tornado slice resists modelling.
+- **On `DEATHS_DIRECT` TabPFN-3 is the most consistent model**, best in four of the five years, with LightGBM just behind it and the LSTM behind both; the GLM is last every year and turns negative in 2022. That year is the weakest for every model on both targets, and it is also the year with the fewest casualty-carrying events. With only a few dozen of them per year, whether the season was violent or quiet moves the score more than the choice of algorithm does.
+
+![TabPFN-3 backtest metrics by validation year, injuries direct, tornado model](images/Tornado_TabPFN_Backtest_Metrics_Injuries_Direct.png)
+
+![TabPFN-3 backtest metrics by validation year, deaths direct, tornado model](images/Tornado_TabPFN_Backtest_Metrics_Deaths_Direct.png)
+
+TabPFN-3 year by year on the two targets: D2 stays in a 0.42–0.67 band on injuries and a 0.28–0.64 band on deaths, with no negative year anywhere. RMSE and MPD track the size of each season instead of model quality — 2022, the quietest year, has the lowest values on both targets, and 2023 the highest MPD on injuries.
+
+#### Conformal intervals over the year — `INJURIES_DIRECT` and `DEATHS_DIRECT`
+
+Tornado is a single event group as well, so again the monthly view is the whole slice. TabPFN-3 is shown here: it is the best model on the 2025 test split for both direct targets, the most consistent on the deaths backtest, and it carries the tightest bands on `INJURIES_DIRECT` (relative width 2.94 against LightGBM's 3.55), essentially tied with the LSTM on `DEATHS_DIRECT`.
+
+![TabPFN-3 monthly conformal intervals, injuries direct, 2025, tornado model](images/Tornado_TabPFN_Conformal_Monthly_Injuries_Direct.png)
+
+`INJURIES_DIRECT` in the 2025 test year. The whole season lives in February–May and the rest of the year is essentially empty, and the band follows that: very wide in March, near zero from July on. March is also the one month that fails, and it fails in the safe direction — the model expected a major outbreak month (about 260 injuries, with a band running from roughly 140 to 380) and the season delivered 71, below the lower edge. From April onward predicted and actual converge and every month falls inside the interval.
+
+![TabPFN-3 monthly conformal intervals, deaths direct, 2025, tornado model](images/Tornado_TabPFN_Conformal_Monthly_Deaths_Direct.png)
+
+`DEATHS_DIRECT` misses twice, in opposite directions, and both misses are about *timing* rather than level: in March the band sits entirely above the 21 deaths actually recorded, and in May the 26 deaths recorded clear a ceiling near 15. The model placed the deadly month of the season in March; 2025 put it in May. The two errors partly cancel over the year, which is why the annual point metrics for this target stay respectable while the monthly intervals fail twice. With 14–31 death-carrying tornado events in a year, a one-month shift in the season is enough to break the calibration — the clearest illustration across the three slices of what data scarcity does to interval forecasts.
 
 ### Takeaways
 
