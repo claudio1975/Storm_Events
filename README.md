@@ -130,6 +130,33 @@ The largest and most homogeneous slice, and the one where the gradient booster i
 
 Coverage is again close to nominal for all four models. LightGBM gives the tightest bands on three targets, the LSTM on `INJURIES_INDIRECT`. Widths are relatively larger than in the global notebook because thunderstorm casualties are rare per event.
 
+#### Backtesting comparison — `INJURIES_DIRECT` and `DEATHS_DIRECT`
+
+The same five expanding-window folds as the global slice (train ≤ 2018 → predict 2019, up to train ≤ 2022 → predict 2023), read on the same two direct targets.
+
+Two things come out of it:
+
+- **On `INJURIES_DIRECT` the three nonlinear models are stable and close to interchangeable.** LightGBM, the LSTM and TabPFN-3 are positive in all five years and stay in a narrow range; TabPFN-3 is ahead in three years, LightGBM in the other two, and in every year the distance between them is small. The gap that repeats is the one against the GLM, which is roughly half as good year after year. Unlike the global slice, backtesting and the 2025 test split agree here: on a large, homogeneous slice the ranking does not depend on which year you look at.
+- **On `DEATHS_DIRECT` LightGBM is the most consistent model**, best in four of the five years, and again nothing ever turns negative. The one real movement in the whole thunderstorm backtest is here: the level starts near 0.48 in 2019–2020 and drifts down to about 0.37 by 2023 — for all four models at once, which makes it a property of those years rather than of any algorithm. This is also the sparser of the two targets in this slice, with roughly 34–50 events carrying at least one death per year against 96–139 carrying an injury, the mirror image of the global slice, so its yearly score is the more sensitive of the two.
+
+![LightGBM backtest metrics by validation year, injuries direct, thunderstorm model](images/Thunderstorm_LightGBM_Backtest_Metrics_Injuries_Direct.png)
+
+![LightGBM backtest metrics by validation year, deaths direct, thunderstorm model](images/Thunderstorm_LightGBM_Backtest_Metrics_Deaths_Direct.png)
+
+The two panels are the visual contrast with the global slice: no year collapses, and the metrics stay on the same scale from 2019 to 2023. On `DEATHS_DIRECT` all three metrics are essentially flat. On `INJURIES_DIRECT` only RMSE moves, tracking the severity of each year's worst outbreaks (highest in 2020 and 2023), while D2 and MPD barely react — the same reason the ranking here is read on D2 and MPD.
+
+#### Conformal intervals over the year — `INJURIES_DIRECT` and `DEATHS_DIRECT`
+
+Thunderstorm is a single event group, so there is no per-group breakdown to make: the monthly view *is* the whole slice. LightGBM is shown again, being the tightest of the four models on `DEATHS_DIRECT` and tied tightest on `INJURIES_DIRECT` at nominal coverage.
+
+![LightGBM monthly conformal intervals, injuries direct, 2025, thunderstorm model](images/Thunderstorm_LightGBM_Conformal_Monthly_Injuries_Direct.png)
+
+`INJURIES_DIRECT` in the 2025 test year. The slice has a strong, clean seasonality — the season builds from February, peaks in June, decays through the autumn — and the band follows that shape instead of staying flat, widening exactly where the risk concentrates. The actual monthly total stays inside the interval in every month of the year, the June peak included (77 injuries against a ceiling near 82). The predicted line sits below the actual at the spring and summer peaks, so the model under-calls the level while the interval still contains it, which is precisely what the conformal layer is there to provide.
+
+![LightGBM monthly conformal intervals, deaths direct, 2025, thunderstorm model](images/Thunderstorm_LightGBM_Conformal_Monthly_Deaths_Direct.png)
+
+`DEATHS_DIRECT` shows the same seasonal shape on a much smaller scale, and one month escapes: June, the peak of the season, with 20 deaths against a band ceiling near 17.5. Every other month is inside. With only a few dozen death-carrying events per year in this slice, a single severe June outbreak is exactly the kind of episode the interval cannot anticipate — the same scarcity effect seen in the global slice, but confined to one month here instead of scattered across the rare event groups.
+
 ### Tornado — 1950–2025
 
 ![Point metrics comparison by target and split, tornado model](images/Tornado_Models_Comparison_Metrics.png)
