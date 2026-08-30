@@ -88,11 +88,57 @@ Metrics are D2 (Poisson pseudo-R², high = better), RMSE and mean Poisson devian
 
 ![Point metrics comparison by target and split, global model](images/Global_Models_Comparison_Metrics.png)
 
-On the test split **TabPFN-3 wins all four targets** (D2 0.53 deaths direct, 0.67 deaths indirect, 0.48 injuries direct, 0.47 injuries indirect) and has the lowest MPD everywhere. LightGBM is the closest competitor, the LSTM sits behind it, and the GLM is the weakest, it barely beats the intercept on `INJURIES_DIRECT` (D2 0.03).
+On the test split **TabPFN-3 wins all four targets** on test (D2 0.53 deaths direct, 0.67 deaths indirect, 0.48 injuries direct, 0.47 injuries indirect) and has the lowest MPD everywhere. LightGBM is the closest competitor, the LSTM sits behind it, and the GLM is the weakest, it barely beats the intercept on `INJURIES_DIRECT` (D2 0.03).
 
 ![Conformal coverage and relative width by target, global model](images/Global_Models_Comparison_Conformal.png)
 
 Coverage lands between 0.90 and 0.94 for every model and target, so the bands are honest rather than merely narrow. **LightGBM produces the tightest intervals** on three of the four targets; TabPFN-3 is tightest on `DEATHS_INDIRECT`.
+
+#### Backtesting comparison — `INJURIES_DIRECT` and `DEATHS_DIRECT`
+
+The comparison above rests on a single test year (2025), so it says which model won once, not which model is reliable. Backtesting answers the second question: every model is re-fitted on the five expanding-window folds it was tuned on (train ≤ 2018 → validate 2019, …, train ≤ 2022 → validate 2023) and scored on the same validation years. The two direct targets are shown here because they are the ones with enough casualty events to be read year by year.
+
+D2 per validation year (high = better), `INJURIES_DIRECT`:
+
+| Model | 2019 | 2020 | 2021 | 2022 | 2023 |
+|---|---|---|---|---|---|
+| GLM | −0.08 | 0.01 | −0.01 | 0.02 | 0.10 |
+| **LightGBM** | **0.27** | **0.27** | **0.32** | **0.05** | 0.21 |
+| LSTM | 0.03 | 0.21 | 0.25 | −0.20 | 0.28 |
+| TabPFN-3 | 0.20 | −0.17 | 0.20 | −0.04 | **0.38** |
+
+D2 per validation year (high = better), `DEATHS_DIRECT`:
+
+| Model | 2019 | 2020 | 2021 | 2022 | 2023 |
+|---|---|---|---|---|---|
+| GLM | 0.50 | 0.51 | 0.44 | 0.48 | 0.47 |
+| **LightGBM** | **0.66** | 0.59 | 0.53 | 0.58 | **0.66** |
+| LSTM | 0.61 | **0.59** | 0.52 | 0.58 | 0.60 |
+| TabPFN-3 | 0.65 | 0.57 | **0.60** | **0.62** | 0.62 |
+
+Three things come out of it:
+
+- **LightGBM is the most consistent model on `INJURIES_DIRECT`**, best in 4 of the 5 years on both D2 and MPD, and never negative. TabPFN-3 wins 2023 and wins the 2025 test split, but historically it swings from 0.38 down to −0.17. TabPFN-3's test-split lead is therefore real but not yet a track record, whereas LightGBM's is.
+- **`DEATHS_DIRECT` is the easier target**, and the three nonlinear models are effectively tied (D2 0.52–0.66, no model ever behind by more than ~0.09). The reason is exposure: this target carries 300–428 casualty events per validation year against 96–139 for `INJURIES_DIRECT`, so the yearly scores are far less hostage to a handful of episodes. The GLM is last in every single year on both targets.
+- **RMSE is almost identical across models within a year** (e.g. ≈4.75 for all four in 2023 on `INJURIES_DIRECT`) and rises sharply in 2022–2023. That movement is the size of the year's worst episodes, not model degradation, which is exactly why D2 and MPD, not RMSE, decide the ranking here.
+
+![LightGBM backtest metrics by validation year, injuries direct, global model](images/Global_LightGBM_Backtest_Metrics_Injuries_Direct.png)
+
+![LightGBM backtest metrics by validation year, deaths direct, global model](images/Global_LightGBM_Backtest_Metrics_Deaths_Direct.png)
+
+The two panels show the same stability from the other side. On `INJURIES_DIRECT` D2 stays in a 0.05–0.32 band while RMSE and MPD are flat through 2021 and then jump in 2022–2023; on `DEATHS_DIRECT` D2 sits around 0.53–0.66 every year and MPD stays between 0.04 and 0.11, with only RMSE tracking the growing size of the extreme days.
+
+#### Conformal intervals by event group
+
+Because LightGBM is both the most stable model on the backtest and the one with the tightest bands on the two direct targets, its 2025 intervals are the ones broken down per event group below.
+
+![LightGBM monthly conformal intervals by event group, injuries direct, 2025, global model](images/Global_LightGBM_Conformal_by_Event_Injuries_Direct.png)
+
+![LightGBM monthly conformal intervals by event group, deaths direct, 2025, global model](images/Global_LightGBM_Conformal_by_Event_Deaths_Direct.png)
+
+The 90% adaptive conformal interval for the 2025 test year, one panel per event group. The well-populated groups behave: `Winter_Storm`, `High_Wind`, `Flooding` and `Coastal_Flood` keep the actual monthly totals inside the band for most of the year, and the band widens and narrows with the season instead of staying flat.
+
+The failures are informative and they are the same in both targets. Single catastrophic episodes break out of the band, the January wildfire month (26 injuries, 58 deaths against a band ceiling near 12 and 4), the June–July heat wave on `INJURIES_DIRECT` (173 against a ceiling near 90) and the July flooding spike on `DEATHS_DIRECT` (135 against a ceiling near 45). At the other end, the rare groups (`Drought`, `Dust`, `Tropical_Cyclone`, with 35 test events in the last case) record zero casualties all year and receive wide, almost flat bands: with nothing to calibrate on, the interval degenerates to a constant. Coverage is close to nominal overall precisely because these are a small minority of the months, but they mark where the model is honest about knowing nothing rather than accurate.
 
 ### Thunderstorm — 1955–2025
 
@@ -102,23 +148,25 @@ The largest and most homogeneous slice, and the one where the gradient booster i
 
 ![Conformal coverage and relative width by target, thunderstorm model](images/Thunderstorm_Models_Comparison_Conformal.png)
 
-Coverage is again close to nominal for all four models. LightGBM gives the tightest bands on three targets, the LSTM on `INJURIES_INDIRECT`. Widths are relatively larger than in the global notebook because thunderstorm casualties are rare per event: the daily totals being bracketed are small numbers, so the interval looks wide next to them.
+Coverage is again close to nominal for all four models. LightGBM gives the tightest bands on three targets, the LSTM on `INJURIES_INDIRECT`. Widths are relatively larger than in the global notebook because thunderstorm casualties are rare per event.
 
 ### Tornado — 1950–2025
 
 ![Point metrics comparison by target and split, tornado model](images/Tornado_Models_Comparison_Metrics.png)
 
-The hardest slice, with only 1,776 events in the 2025 test year. **TabPFN-3 is the best model on the two targets that carry enough test signal**: D2 0.40 on `DEATHS_DIRECT` and 0.22 on `INJURIES_DIRECT`, where the GLM is actually negative (−0.27), i.e. worse than predicting the mean. The indirect targets should be read as not evaluable rather than as results: the 2025 test year contains 2 indirect injuries and **zero** indirect deaths, which is why the last group of bars is marked `n/d`.
+The hardest slice, with only 1,776 events in the 2025 test year. **TabPFN-3 is the best model on the two targets that carry enough test signal**: D2 0.40 on `DEATHS_DIRECT` and 0.22 on `INJURIES_DIRECT`, where the GLM is actually negative (−0.27), i.e. worse than predicting the mean. The deaths indirect target should be read as not evaluable rather than as results.
 
 ![Conformal coverage and relative width by target, tornado model](images/Tornado_Models_Comparison_Conformal.png)
 
-Coverage stays at or above nominal for every model, but the intervals are wide relative to the daily totals they cover, and the relative width for `DEATHS_INDIRECT` is undefined because the actual total is zero all year.
+Coverage stays at or above nominal for every model, but the intervals are are relatively larger than in the global notebook, and the relative width for `DEATHS_INDIRECT` is undefined because the actual total is zero all year.
 
 ### Takeaways
 
 - **No single model wins everywhere.** TabPFN-3 is the strongest on the two sparse, heterogeneous slices (global and tornado), LightGBM on the large, homogeneous thunderstorm slice. Splitting the database into three regimes was worth it.
 - **The GLM is the floor, not the answer.** It stays interpretable and never breaks, but it trails on every slice and goes negative where the data is thinnest.
 - **Uncertainty is well calibrated everywhere, while point accuracy varies materially by target and slice.** Conformal coverage is close to 0.90 in all three notebooks; D2 ranges from ~0.67 down to ~0.22 depending on how many casualty events the slice actually contains. Data scarcity, not model choice, is the binding constraint.
+- The main lesson is therefore that model complexity should follow data richness: nonlinear/foundation models add value when signal exists, but rare-event uncertainty remains fundamental and should be quantified with adaptive conformal prediction rather than hidden behind point forecasts.
+- The results show that very low RMSE or MPD for extremely rare targets can be misleading so D², event counts and backtesting must be interpreted together.
 
 ## Data files
 
