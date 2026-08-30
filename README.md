@@ -161,7 +161,7 @@ Thunderstorm is a single event group, so there is no per-group breakdown to make
 
 ![Point metrics comparison by target and split, tornado model](images/Tornado_Models_Comparison_Metrics.png)
 
-The hardest slice, with only 1,776 events in the 2025 test year. **TabPFN-3 is the best model on the two targets that carry enough test signal**: D2 0.40 on `DEATHS_DIRECT` and 0.22 on `INJURIES_DIRECT`, where the GLM is actually negative (−0.27), i.e. worse than predicting the mean. The deaths indirect target should be read as not evaluable rather than as results.
+**TabPFN-3 is the best model on the two targets that carry enough test signal**: D2 0.40 on `DEATHS_DIRECT` and 0.22 on `INJURIES_DIRECT`, where the GLM is actually negative (−0.27), i.e. worse than predicting the mean. The deaths indirect target should be read as not evaluable rather than as results.
 
 ![Conformal coverage and relative width by target, tornado model](images/Tornado_Models_Comparison_Conformal.png)
 
@@ -169,26 +169,26 @@ Coverage stays at or above nominal for every model, but the intervals are are re
 
 #### Backtesting comparison — `INJURIES_DIRECT` and `DEATHS_DIRECT`
 
-The same five expanding-window folds, on the thinnest slice of the three: each validation year holds only about 1,500–2,100 tornado events, of which 71–97 carry an injury and 14–31 a death.
+The same five expanding-window folds.
 
 Two things come out of it:
 
-- **The 2025 test year is harder than any of the five backtest years.** On `INJURIES_DIRECT` the models score between 0.42 and 0.68 in every backtest year — LightGBM best in four of the five, TabPFN-3 in 2022, the two always close — against the 0.22 reported above on the 2025 test split. Same models, same protocol, so the modest test-split figure is a property of 2025 rather than evidence that the tornado slice resists modelling.
-- **On `DEATHS_DIRECT` TabPFN-3 is the most consistent model**, best in four of the five years, with LightGBM just behind it and the LSTM behind both; the GLM is last every year and turns negative in 2022. That year is the weakest for every model on both targets, and it is also the year with the fewest casualty-carrying events. With only a few dozen of them per year, whether the season was violent or quiet moves the score more than the choice of algorithm does.
+- **On `INJURIES_DIRECT` LightGBM leads the backtest**, best in four of the five years on both D2 and MPD, while TabPFN-3 wins the 2025 test split. As in the global slice, one year of point prediction and five years of backtesting do not point to the same model.
+- **On `DEATHS_DIRECT` TabPFN-3 is the most consistent model**, best in four of the five years, with LightGBM just behind it and the LSTM behind both; the GLM is last every year and turns negative in 2022. That year is the weakest for every model on both targets, and it is tied with 2019 for the fewest death-carrying events.
 
-![TabPFN-3 backtest metrics by validation year, injuries direct, tornado model](images/Tornado_TabPFN_Backtest_Metrics_Injuries_Direct.png)
+![LightGBM backtest metrics by validation year, injuries direct, tornado model](images/Tornado_LightGBM_Backtest_Metrics_Injuries_Direct.png)
 
 ![TabPFN-3 backtest metrics by validation year, deaths direct, tornado model](images/Tornado_TabPFN_Backtest_Metrics_Deaths_Direct.png)
 
-TabPFN-3 year by year on the two targets: D2 stays in a 0.42–0.67 band on injuries and a 0.28–0.64 band on deaths, with no negative year anywhere. RMSE and MPD track the size of each season instead of model quality — 2022, the quietest year, has the lowest values on both targets, and 2023 the highest MPD on injuries.
+Each panel shows the model that leads its own target: LightGBM on `INJURIES_DIRECT`, TabPFN-3 on `DEATHS_DIRECT`. D2 stays in a 0.43–0.68 band on injuries and a 0.28–0.64 band on deaths, with no negative year anywhere. RMSE and MPD follow the size of each season rather than model quality: 2022, the quietest year, is the lowest on both targets.
 
 #### Conformal intervals over the year — `INJURIES_DIRECT` and `DEATHS_DIRECT`
 
-Tornado is a single event group as well, so again the monthly view is the whole slice. TabPFN-3 is shown here: it is the best model on the 2025 test split for both direct targets, the most consistent on the deaths backtest, and it carries the tightest bands on `INJURIES_DIRECT` (relative width 2.94 against LightGBM's 3.55), essentially tied with the LSTM on `DEATHS_DIRECT`.
+Tornado is a single event group as well, so again the monthly view is the whole slice. TabPFN-3 is shown for both targets here, on interval grounds rather than backtest ones: it is the best model on the 2025 test split for both direct targets and carries the tightest bands on `INJURIES_DIRECT`, essentially tied with the LSTM on `DEATHS_DIRECT`.
 
 ![TabPFN-3 monthly conformal intervals, injuries direct, 2025, tornado model](images/Tornado_TabPFN_Conformal_Monthly_Injuries_Direct.png)
 
-`INJURIES_DIRECT` in the 2025 test year. The whole season lives in February–May and the rest of the year is essentially empty, and the band follows that: very wide in March, near zero from July on. March is also the one month that fails, and it fails in the safe direction — the model expected a major outbreak month (about 260 injuries, with a band running from roughly 140 to 380) and the season delivered 71, below the lower edge. From April onward predicted and actual converge and every month falls inside the interval.
+`INJURIES_DIRECT` in the 2025 test year. The whole season lives in February–May and the rest of the year is essentially empty, and the band follows that: very wide in March, near zero from July on. March is also the one month that fails, and it fails in the safe direction. From April onward predicted and actual converge and every month falls inside the interval.
 
 ![TabPFN-3 monthly conformal intervals, deaths direct, 2025, tornado model](images/Tornado_TabPFN_Conformal_Monthly_Deaths_Direct.png)
 
