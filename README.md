@@ -77,7 +77,7 @@ A 60,000-point sample of event coordinates over the continental U.S. The density
 
 Part of that east/west contrast is meteorological and part is **reporting bias**: storm events are recorded when someone observes and reports them, so sparsely populated areas generate fewer records for the same weather. 
 
-## Modeling results
+## Casualty-Count Modeling results
 
 The unit of analysis is the **single storm event**: one row, one event. The four targets are its casualty counts (`INJURIES_DIRECT`, `INJURIES_INDIRECT`, `DEATHS_DIRECT`, `DEATHS_INDIRECT`), and every model is fitted with a Poisson objective, so what it returns is the **expected number of casualties for that event, conditional on the event's characteristics**. The GLM, LightGBM and LSTM use an explicit Poisson count objective/loss; TabPFN-3 instead works on a transformed casualty rate before returning predictions to the count scale.
 
