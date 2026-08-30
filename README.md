@@ -192,7 +192,7 @@ Tornado is a single event group as well, so again the monthly view is the whole 
 
 ![TabPFN-3 monthly conformal intervals, deaths direct, 2025, tornado model](images/Tornado_TabPFN_Conformal_Monthly_Deaths_Direct.png)
 
-`DEATHS_DIRECT` misses twice, in opposite directions, and both misses are about *timing* rather than level: in March the band sits entirely above the 21 deaths actually recorded, and in May the 26 deaths recorded clear a ceiling near 15. The model placed the deadly month of the season in March; 2025 put it in May. The two errors partly cancel over the year, which is why the annual point metrics for this target stay respectable while the monthly intervals fail twice. With 14–31 death-carrying tornado events in a year, a one-month shift in the season is enough to break the calibration — the clearest illustration across the three slices of what data scarcity does to interval forecasts.
+`DEATHS_DIRECT` misses twice, in opposite directions, and both misses are about *timing* rather than level: in March the band sits entirely above the 21 deaths actually recorded, and in May the 26 deaths recorded clear a ceiling near 15. The model placed the deadly month of the season in March; 2025 put it in May. The two errors partly cancel over the year, which is why the annual point metrics for this target stay respectable while the monthly intervals fail twice. 
 
 ### Takeaways
 
