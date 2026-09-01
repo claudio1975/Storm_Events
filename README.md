@@ -124,11 +124,11 @@ The same view for `DEATHS_DIRECT` is visibly calmer. The well-populated groups (
 
 ![Point metrics comparison by target and split, thunderstorm model](images/Thunderstorm_Models_Comparison_Metrics.png)
 
-The largest and most homogeneous slice, and the one where the gradient booster is at its best: **LightGBM leads on all four test targets** (D2 0.43 injuries direct, 0.43 deaths direct, 0.37 injuries indirect, 0.27 deaths indirect), with TabPFN-3 statistically level on the two direct targets and the GLM roughly half as good.
+The largest and most homogeneous slice, and the one where the gradient booster is at its best: **LightGBM leads three of the four test targets** (D2 0.43 injuries direct, 0.37 injuries indirect, 0.27 deaths indirect) and TabPFN-3 edges it on the fourth, `DEATHS_DIRECT`, by 0.44 against 0.43. The two are effectively level on both direct targets, the LSTM sits behind them, and the GLM is roughly half as good. `DEATHS_INDIRECT` is the only target where TabPFN-3 fails outright (D2 −0.04, below the intercept).
 
 ![Conformal coverage and relative width by target, thunderstorm model](images/Thunderstorm_Models_Comparison_Conformal.png)
 
-Coverage is again close to nominal for all four models. LightGBM gives the tightest bands on three targets, the LSTM on `INJURIES_INDIRECT`. Widths are relatively larger than in the global notebook because thunderstorm casualties are rare per event.
+Coverage is again close to nominal for all four models (0.90–0.93). LightGBM gives the tightest bands on the two direct targets and the LSTM on the two indirect ones, while TabPFN-3 pays for its sparse-target trouble with much wider intervals there. Widths are relatively larger than in the global notebook because thunderstorm casualties are rare per event.
 
 #### Backtesting comparison — `INJURIES_DIRECT` and `DEATHS_DIRECT`
 
@@ -137,17 +137,17 @@ The same five expanding-window folds as the global slice (train ≤ 2018 → pre
 Two things come out of it:
 
 - **On `INJURIES_DIRECT` the three nonlinear models are stable and close to interchangeable.** LightGBM, the LSTM and TabPFN-3 are positive in all five years and stay in a narrow range; TabPFN-3 is ahead in three years, LightGBM in the other two, and in every year the distance between them is small. The gap that repeats is the one against the GLM, which is roughly half as good year after year. Unlike the global slice, backtesting and the 2025 test split agree here: on a large, homogeneous slice the ranking does not depend on which year you look at.
-- **On `DEATHS_DIRECT` LightGBM is the most consistent model**, best in four of the five years, and again nothing ever turns negative. The one real movement in the whole thunderstorm backtest is here: the level starts near 0.48 in 2019–2020 and drifts down to about 0.37 by 2023, for all four models at once, which makes it a property of those years rather than of any algorithm. 
+- **On `DEATHS_DIRECT` no model is meaningfully better than the others either.** TabPFN-3 is ahead in three years and LightGBM in the other two, but in 2019 and 2020 the two are separated by about a thousandth of a D2 point, and nothing ever turns negative. The one real movement in the whole thunderstorm backtest is here: the level starts near 0.48 in 2019–2020 and drifts down to about 0.37 by 2023, for all four models at once, which makes it a property of those years rather than of any algorithm. 
 
 ![LightGBM backtest metrics by validation year, injuries direct, thunderstorm model](images/Thunderstorm_LightGBM_Backtest_Metrics_Injuries_Direct.png)
 
 ![LightGBM backtest metrics by validation year, deaths direct, thunderstorm model](images/Thunderstorm_LightGBM_Backtest_Metrics_Deaths_Direct.png)
 
-The two panels are the visual contrast with the global slice: no year collapses, and the metrics stay on the same scale from 2019 to 2023. On `DEATHS_DIRECT` all three metrics are essentially flat. On `INJURIES_DIRECT` only RMSE moves, tracking the severity of each year's worst outbreaks (highest in 2020 and 2023), while D2 and MPD barely react, the same reason the ranking here is read on D2 and MPD.
+Since the three nonlinear models are interchangeable here, LightGBM stands in for all of them in the two panels above, as it does for the intervals further down. The panels are the visual contrast with the global slice: no year collapses, and the metrics stay on the same scale from 2019 to 2023. On `DEATHS_DIRECT` all three metrics are essentially flat. On `INJURIES_DIRECT` only RMSE moves, tracking the severity of each year's worst outbreaks (highest in 2020 and 2023), while D2 and MPD barely react, the same reason the ranking here is read on D2 and MPD.
 
 #### Conformal intervals over the year — `INJURIES_DIRECT` and `DEATHS_DIRECT`
 
-Thunderstorm is a single event group, so there is no per-group breakdown to make: the monthly view *is* the whole slice. LightGBM is shown again, being the tightest of the four models on `DEATHS_DIRECT` and tied tightest on `INJURIES_DIRECT` at nominal coverage.
+LightGBM is shown again, being the tightest of the four models on `DEATHS_DIRECT` and tied tightest on `INJURIES_DIRECT` at nominal coverage.
 
 ![LightGBM monthly conformal intervals, injuries direct, 2025, thunderstorm model](images/Thunderstorm_LightGBM_Conformal_Monthly_Injuries_Direct.png)
 
