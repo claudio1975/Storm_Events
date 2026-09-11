@@ -50,6 +50,7 @@ The scripts and notebooks are numbered in the order they run.
    | `9_Tornado_…` | `Tornado` | 1950–2025 | 90,255 
 
    All three read the augmented dataset straight from the parquet files in `data/` and follow the same protocol. The data is **split by date first** (train through 2023, calibration 2024, test 2025) and only then filtered for zero-variance, redundant and high-cardinality features **using training rows alone**, so no test information reaches the design matrix. The GLM, LightGBM and LSTM hyperparameters are selected with expanding-window cross-validation over validation years, minimizing mean Poisson deviance. TabPFN-3 uses a fixed in-context configuration with a target-stratified context of up to 50,000 training rows, prioritising positive casualty cases and sampling zeros to fill the context. All four models are then backtested on the same expanding-window folds. Every model is backtested on the same expanding-window folds it was tuned on and produces 90% adaptive conformal intervals. Some pictures below come from these notebooks.
+10. **`10_Global_Interpretability_Spatio_Temporal_Transformer_used_count.ipynb`** A fifth model for the global slice: a spatio-temporal transformer written directly in PyTorch. It uses the same data, date split and casualty targets as `9_Global_…`, and the same metrics, conformal intervals and expanding-window backtest, so its results can be read side by side with the other four models. It closes with an interpretability section on what the network learned about each category.
 
 ## What the data looks like
 
@@ -119,6 +120,75 @@ The 90% adaptive conformal interval for `INJURIES_DIRECT` in the 2025 test year,
 ![LightGBM monthly conformal intervals by event group, deaths direct, 2025, global model](images/Global_LightGBM_Conformal_by_Event_Deaths_Direct.png)
 
 The same view for `DEATHS_DIRECT` is visibly calmer. The well-populated groups (`Winter_Storm`, `High_Wind`, `Coastal_Flood`, `Cold`) keep the monthly totals inside the band almost all year, and `Extreme_Heat`, the group that breaks the injuries picture, is here one of the best-tracked, its summer hump followed by the band from June through September. Two single episodes still escape: the January wildfire month, an order of magnitude above its band ceiling, and the July flooding peak, well above its own. They are exactly the two groups whose test D2 suffers, `Wildfire` being the only negative group of the eleven. The zero-casualty groups behave as before: `Drought`, `Dust` and `Tropical_Cyclone` record no deaths at all in 2025, so their bands stay wide and flat and their D2 is undefined, the interval covers the actuals trivially rather than informatively.
+
+#### Spatio-temporal transformer — `10_Global_…`
+
+**Architecture.** Each event becomes a sequence of 17 tokens:
+
+- one CLS slot;
+- one token per categorical field (state, WFO, zone type, time zone, source, data source, event group and the three LLM labels `risk`, `impact_type`, `event_scope`);
+- one token per numeric field (duration and distance, encoded with learned periodic features);
+- one token for each narrative's 10 embedding components;
+- one token for the season and one for the year.
+
+State, WFO, event group and the three LLM labels are embedded in two dimensions, so what the model learns about them can be drawn as a map. Three encoder layers (width 64, 4 attention heads) let the tokens attend to each other. A single learned query then reads the encoder output through cross-attention, and a Poisson head turns it into the expected casualty count.
+
+One model is fitted per target (146k parameters each). Training runs on 1996–2022, and 2023 is held out for early stopping on the mean Poisson deviance. Unlike the notebook-9 models, the transformer keeps `STATE`, `WFO` and `SOURCE` as inputs.
+
+**Results.** D2 on the 2025 test split, next to the four notebook-9 models:
+
+| Target | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
+|---|---|---|---|---|---|
+| `INJURIES_DIRECT` | 0.03 | 0.26 | 0.14 | **0.48** | 0.28 |
+| `INJURIES_INDIRECT` | 0.29 | 0.44 | 0.41 | 0.47 | **0.53** |
+| `DEATHS_DIRECT` | 0.37 | 0.45 | 0.48 | 0.53 | **0.62** |
+| `DEATHS_INDIRECT` | 0.49 | 0.51 | 0.54 | **0.67** | 0.60 |
+| Mean | 0.30 | 0.42 | 0.39 | **0.54** | 0.51 |
+
+- **Test split:** the transformer is the best of the five models on two targets and second overall.
+- **Conformal intervals:** coverage stays at nominal (0.90–0.92 daily). Together with LightGBM's, its bands are the tightest: on average 2.3 times the daily casualty total, against 3.4–3.7 for TabPFN-3, the LSTM and the GLM.
+- **Backtest:** here the picture changes. Its mean D2 over 2019–2023 (0.38 across targets) trails LightGBM (0.44), the LSTM (0.41) and TabPFN-3 (0.40). It is also the least steady of the nonlinear models on the indirect targets.
+- **Weak point, `INJURIES_DIRECT`:** early stopping kept the very first epoch, and the 2024 calibration D2 is only 0.08.
+
+As with TabPFN-3 above, one strong test year is not enough to call it the better model.
+
+![Monthly actual vs predicted casualties over 1996–2025, spatio-temporal transformer](images/Global_STT_Monthly_Actual_vs_Predicted.png)
+
+Monthly totals over the whole period; the shaded bands mark validation (2023), calibration (2024) and test (2025). The model tracks the seasonal level, while the few catastrophic months stand far above any prediction. Indirect casualties are practically absent from the records before 2007.
+
+![Spatio-temporal transformer monthly conformal intervals, 2025](images/Global_STT_Conformal_Monthly.png)
+
+In 2025 most months fall inside the 90% band. The misses are single outbreaks:
+
+- June for injuries direct (186 against a ceiling near 85);
+- January for deaths direct (80 against about 53);
+- June and August for deaths indirect.
+
+![Spatio-temporal transformer backtest metrics by validation year, injuries direct](images/Global_STT_Backtest_Metrics_Injuries_Direct.png)
+
+![Spatio-temporal transformer backtest metrics by validation year, deaths direct](images/Global_STT_Backtest_Metrics_Deaths_Direct.png)
+
+The two panels tell different stories:
+
+- **`DEATHS_DIRECT`** holds D2 between 0.50 and 0.66 in every year.
+- **`INJURIES_DIRECT`** stays positive but low, and 2022 barely clears zero.
+
+The 2023 jump in RMSE and MPD is shared by every model in notebook 9, so it reflects that year's outbreaks rather than this network.
+
+**Interpretability.** Each dot below is a category as the model stores it: a two-dimensional embedding, learned separately for each target. The colour is the category's average LLM `risk` label in the training years (0 = low, 2 = high). The axes have no meaning of their own, because any rotation of the map gives the same model, so only neighbourhoods can be read.
+
+![EVENT_GROUP embedding map coloured by mean LLM risk, spatio-temporal transformer](images/Global_STT_Embedding_Event_Group_Risk.png)
+
+On `EVENT_GROUP`, `Drought`, the group with essentially no casualties, is pushed to an edge of every map. On the two indirect targets:
+
+- `Drought` and `Coastal_Flood`, among the groups with the fewest indirect casualties, share a corner.
+- That corner is far from `Winter_Storm` and `Dust`, which produce the most indirect casualties.
+
+The colour does not follow that split. `Dust` has the lowest LLM risk of all and still sits next to `Winter_Storm`. The model is ordering the categories by the casualties they actually produced, not by how dangerous their narratives sound.
+
+![STATE embedding map coloured by mean LLM risk, spatio-temporal transformer](images/Global_STT_Embedding_State_Risk.png)
+
+On `STATE` there is neither a geographic pattern nor a risk gradient: most states crowd the centre with mixed colours. The points pushed farthest out are mostly low-risk marine zones (`LAKE HURON`, `LAKE ST CLAIR`, `LAKE ERIE`, `ATLANTIC SOUTH`, `GULF OF MEXICO`). Outliers of this kind are typical of levels with little data behind them, and should not be over-read.
 
 ### Thunderstorm — 1955–2025
 
@@ -197,6 +267,7 @@ Tornado is a single event group as well, so again the monthly view is the whole 
 ### Takeaways
 
 - **No single model wins everywhere.** TabPFN-3 is the strongest on the two sparse, heterogeneous slices (global and tornado), LightGBM on the large, homogeneous thunderstorm slice. Splitting the database into three regimes was worth it.
+- **The spatio-temporal transformer is competitive, not dominant.** On the global slice it is second on the 2025 test split and ties LightGBM for the tightest intervals, but it sits mid-pack in the backtest. What it adds is that the categories it learns can be inspected directly.
 - **The GLM is the floor, not the answer.** It stays interpretable and never breaks, but it trails on every slice and goes negative where the data is thinnest.
 - **Uncertainty is well calibrated everywhere, while point accuracy varies materially by target and slice.** Conformal coverage is close to 0.90 in all three notebooks; D2 ranges from ~0.67 down to ~0.22 depending on how many casualty events the slice actually contains. Data scarcity, not model choice, is the binding constraint.
 - The main lesson is therefore that model complexity should follow data richness: nonlinear/foundation models add value when signal exists, but rare-event uncertainty remains fundamental and should be quantified with adaptive conformal prediction rather than hidden behind point forecasts.
