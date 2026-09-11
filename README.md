@@ -152,43 +152,22 @@ One model is fitted per target (146k parameters each). Training runs on 1996–2
 
 As with TabPFN-3 above, one strong test year is not enough to call it the better model.
 
-![Monthly actual vs predicted casualties over 1996–2025, spatio-temporal transformer](images/Global_STT_Monthly_Actual_vs_Predicted.png)
-
 Monthly totals over the whole period; the shaded bands mark validation (2023), calibration (2024) and test (2025). The model tracks the seasonal level, while the few catastrophic months stand far above any prediction. Indirect casualties are practically absent from the records before 2007.
 
 ![Spatio-temporal transformer monthly conformal intervals, 2025](images/Global_STT_Conformal_Monthly.png)
 
-In 2025 most months fall inside the 90% band. The misses are single outbreaks:
-
-- June for injuries direct (186 against a ceiling near 85);
-- January for deaths direct (80 against about 53);
-- June and August for deaths indirect.
+In 2025 most months fall inside the 90% band. 
 
 ![Spatio-temporal transformer backtest metrics by validation year, injuries direct](images/Global_STT_Backtest_Metrics_Injuries_Direct.png)
 
 ![Spatio-temporal transformer backtest metrics by validation year, deaths direct](images/Global_STT_Backtest_Metrics_Deaths_Direct.png)
 
-The two panels tell different stories:
-
-- **`DEATHS_DIRECT`** holds D2 between 0.50 and 0.66 in every year.
-- **`INJURIES_DIRECT`** stays positive but low, and 2022 barely clears zero.
-
-The 2023 jump in RMSE and MPD is shared by every model in notebook 9, so it reflects that year's outbreaks rather than this network.
 
 **Interpretability.** Each dot below is a category as the model stores it: a two-dimensional embedding, learned separately for each target. The colour is the category's average LLM `risk` label in the training years (0 = low, 2 = high). The axes have no meaning of their own, because any rotation of the map gives the same model, so only neighbourhoods can be read.
 
 ![EVENT_GROUP embedding map coloured by mean LLM risk, spatio-temporal transformer](images/Global_STT_Embedding_Event_Group_Risk.png)
 
-On `EVENT_GROUP`, `Drought`, the group with essentially no casualties, is pushed to an edge of every map. On the two indirect targets:
-
-- `Drought` and `Coastal_Flood`, among the groups with the fewest indirect casualties, share a corner.
-- That corner is far from `Winter_Storm` and `Dust`, which produce the most indirect casualties.
-
-The colour does not follow that split. `Dust` has the lowest LLM risk of all and still sits next to `Winter_Storm`. The model is ordering the categories by the casualties they actually produced, not by how dangerous their narratives sound.
-
 ![STATE embedding map coloured by mean LLM risk, spatio-temporal transformer](images/Global_STT_Embedding_State_Risk.png)
-
-On `STATE` there is neither a geographic pattern nor a risk gradient: most states crowd the centre with mixed colours. The points pushed farthest out are mostly low-risk marine zones (`LAKE HURON`, `LAKE ST CLAIR`, `LAKE ERIE`, `ATLANTIC SOUTH`, `GULF OF MEXICO`). Outliers of this kind are typical of levels with little data behind them, and should not be over-read.
 
 ### Thunderstorm — 1955–2025
 
