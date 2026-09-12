@@ -8,6 +8,8 @@ chunks1=np.array_split(df1, indices_or_sections=5)
 for i, chunk in enumerate(chunks1):
     chunk.to_parquet(f'./Storm_Events_GitHub/data/StormEvents_part_{i+1}.parquet', engine='pyarrow', compression='zstd')
     
+df2 = df2.drop(columns=['impact_type'])
+
 chunks2=np.array_split(df2, indices_or_sections=10)
 for i, chunk in enumerate(chunks2):
-    chunk.to_parquet(f'./Storm_Events_GitHub/data/StormEvents_fe_ep_augmentation_fin_part_{i+1}.parquet', engine='pyarrow', compression='zstd')
+    chunk.to_parquet(f'./Storm_Events_GitHub/data/StormEvents_fe_ep_augmentation_fin_update_part_{i+1}.parquet', engine='pyarrow', compression='zstd')
