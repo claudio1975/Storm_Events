@@ -1,12 +1,12 @@
 # Storm_Events
 
-An end-to-end data pipeline for the [NOAA NCEI Storm Events Database](https://www.ncei.noaa.gov/stormevents/ftp.jsp), covering U.S. storm records from **1950 to 2025** (more than 2 million events). The pipeline merges and cleans the raw records, fills the missing narrative texts with LLM-generated ones, and enriches every event with embedding-based and LLM-derived features, producing a dataset ready for machine-learning work. 
+An end-to-end data pipeline for the [NOAA NCEI Storm Events Database](https://www.ncei.noaa.gov/access/storm-events-database), covering U.S. storm records from **1950 to 2025** (more than 2 million events). The pipeline merges and cleans the raw records, fills the missing narrative texts with LLM-generated ones, and enriches every event with embedding-based and LLM-derived features, producing a dataset ready for machine-learning work. 
 
 ## Data source
 
 Storm event records are published by NOAA's National Centers for Environmental Information:
 
-1. Open the [Storm Events Database FTP page](https://www.ncei.noaa.gov/stormevents/ftp.jsp).
+1. Open the [Storm Events Database FTP page](https://www.ncei.noaa.gov/access/storm-events-database/bulk-data).
 2. Navigate to **HTTP access** and download the yearly CSV files (compressed in `.gz` format).
 
 ### What the source period of record actually means
@@ -17,7 +17,7 @@ This is NOAA's own description of the database, and it is the single most import
 
 - **1950–1954**: only **tornado** events were recorded.
 - **1955–1995**: **tornado, thunderstorm wind and hail**.
-- **1996–present**: all **48 event types** defined in [NWS Directive 10-1605](https://www.ncei.noaa.gov/stormevents/ftp.jsp) are recorded.
+- **1996–present**: all **48 event types** defined in [NWS Directive 10-1605](https://www.ncei.noaa.gov/access/storm-events-database/about) are recorded.
 
 ## Pipeline
 
