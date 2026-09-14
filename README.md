@@ -35,7 +35,6 @@ The scripts and notebooks are numbered in the order they run.
    | New column | Question the LLM answers | Possible answers |
    |---|---|---|
    | `risk` | How dangerous was the episode? | high / medium / low |
-   | `impact_type` | What was mainly affected? | casualties / property_damage / crop_damage / infrastructure_disruption / no_significant_impact |
    | `event_scope` | How large an area was affected? | localized / county-wide / regional / widespread |
 
    Each label is defined explicitly in the system prompt (e.g. `high` = deaths, injuries or major destruction occurred or were clearly likely) so the classification stays consistent across the whole dataset, and the model is instructed to judge only what the text states rather than assume unmentioned impacts.
