@@ -6,7 +6,7 @@ An end-to-end data pipeline for the [NOAA NCEI Storm Events Database](https://ww
 
 Storm event records are published by NOAA's National Centers for Environmental Information:
 
-1. Open the [Storm Events Database FTP page](https://www.ncei.noaa.gov/access/storm-events-database/bulk-data).
+1. Open the [Storm Events Database FTP page](https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/).
 2. Navigate to **HTTP access** and download the yearly CSV files (compressed in `.gz` format).
 
 ### What the source period of record actually means
