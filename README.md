@@ -40,7 +40,7 @@ The scripts and notebooks are numbered in the order they run.
    Each label is defined explicitly in the system prompt (e.g. `high` = deaths, injuries or major destruction occurred or were clearly likely) so the classification stays consistent across the whole dataset, and the model is instructed to judge only what the text states rather than assume unmentioned impacts.
 7. **`7_export_github.py`** Splits the datasets into compressed Parquet parts small enough for GitHub and writes them to the `data/` folder.
 8. **`8_EDA_used.ipynb`** Exploratory analysis of the final dataset: coverage over time, event-group composition, geography, damage and casualty trends, stationarity and seasonality of the monthly series, and the categorical drivers of impact. Some pictures below come from this notebook.
-9. **`9_Global_prediction_count_v1.ipynb`**, **`9_Thunderstorm_prediction_count_v1.ipynb`**, **`9_Tornado_prediction_count_v1.ipynb`** Three parallel modelling notebooks that share one design and differ only in the slice of the database they cover. The split follows the collection-regime problem described above: Tornado and Thunderstorm have event records long before 1996, so they are modelled separately, while the remaining event groups are modelled together from 1996 onward.
+9. **`9_Global_prediction_count_v2.ipynb`**, **`9_Thunderstorm_prediction_count_v2.ipynb`**, **`9_Tornado_prediction_count_v2b.ipynb`** Three parallel modelling notebooks that share one design and differ only in the slice of the database they cover. The split follows the collection-regime problem described above: Tornado and Thunderstorm have event records long before 1996, so they are modelled separately, while the remaining event groups are modelled together from 1996 onward.
 
    | Notebook | Scope | Period | Events 
    |---|---|---|---|
@@ -48,9 +48,9 @@ The scripts and notebooks are numbered in the order they run.
    | `9_Thunderstorm_…` | `Thunderstorm` | 1955–2025 | 1,032,841 
    | `9_Tornado_…` | `Tornado` | 1950–2025 | 90,255 
 
-   All three read the augmented dataset straight from the parquet files in `data/` and follow the same protocol. The data is **split by date first** (train through 2023, calibration 2024, test 2025) and only then filtered for zero-variance, redundant and high-cardinality features **using training rows alone**, so no test information reaches the design matrix. Four models are fitted: a Poisson **GLM**, **LightGBM**, an **LSTM** and **TabPFN-3**. The GLM, LightGBM and LSTM hyperparameters are selected with expanding-window cross-validation over validation years, minimizing mean Poisson deviance; TabPFN-3 uses a fixed in-context configuration with a target-stratified context of up to 50,000 training rows. Every model is backtested on the same expanding-window folds and produces 90% adaptive conformal intervals.
-10. **`10_Global_Tabular_Transformer_prediction_count_v1.ipynb`**, **`10_Thunderstorm_Tabular_Transformer_prediction_count_v1.ipynb`**, **`10_Tornado_Tabular_Transformer_prediction_count_v1.ipynb`** A fifth model for each slice: a **tabular transformer** written directly in PyTorch. It uses the same data, date split, targets, metrics, conformal intervals and backtest folds as the matching `9_…` notebook, so its results can be read side by side with the other four models. Some pictures below come from these notebooks.
-11. **`11_Global_Comparison.ipynb`**, **`11_Thunderstorm_Comparison.ipynb`**, **`11_Tornado_Comparison.ipynb`** Load the saved results of the five models for one slice and compare them: point metrics by target and split, a metrics heatmap per model, and conformal coverage and relative width by target. The comparison pictures below come from these notebooks.
+   All three read the augmented dataset straight from the parquet files in `data/` and follow the same protocol. The target is a single count, **`CASUALTY`** (injuries plus deaths, direct and indirect). The data is **split by date first** (train through 2023, calibration 2024, test 2025) and only then filtered for zero-variance, redundant and high-cardinality features **using training rows alone**, so no test information reaches the design matrix. Each event also gets a set of **same-day context features** (how many events had already started that day nationwide, in the same group and in the same state, how many of them were high-risk or wide in scope, and the hours since the previous event of the same group in the same state), built from the predictors of earlier events only, never from their casualties, and one split at a time. Four models are fitted: a Poisson **GLM**, **LightGBM**, an **LSTM** and **TabPFN-3**. The GLM, LightGBM and LSTM hyperparameters are selected with expanding-window cross-validation over validation years, minimizing mean Poisson deviance; TabPFN-3 uses a fixed in-context configuration with a target-stratified context of up to 50,000 training rows. Every model is backtested on the same expanding-window folds and produces 90% adaptive conformal intervals. A last section splits the casualty prediction into injuries and deaths with a fixed share estimated on the training years, without fitting a second model.
+10. **`10_Global_Tabular_Transformer_prediction_count_v2b.ipynb`**, **`10_Thunderstorm_Tabular_Transformer_prediction_count_v2.ipynb`**, **`10_Tornado_Tabular_Transformer_prediction_count_v2ff.ipynb`** A fifth model for each slice: a **tabular transformer** written directly in PyTorch. It uses the same data, date split, target, context features, metrics, conformal intervals and backtest folds as the matching `9_…` notebook, so its results can be read side by side with the other four models.
+11. **`11_Global_Comparison_v2.ipynb`**, **`11_Thunderstorm_Comparison_v2.ipynb`**, **`11_Tornado_Comparison_v2b.ipynb`** Load the saved results of the five models for one slice and compare them: point metrics by split plus the mean over the backtest years, and conformal coverage and relative width. The comparison pictures below come from these notebooks.
 
 ## What the data looks like
 
@@ -80,149 +80,112 @@ Part of that east/west contrast is meteorological and part is **reporting bias**
 
 ## Casualty-Count Modeling results
 
-The unit of analysis is the **single storm event**: one row, one event. There are two targets, **`INJURIES`** and **`DEATHS`**, each the sum of its direct and indirect counts. Every model returns the **expected number of casualties for that event**, conditional on its characteristics, with a Poisson objective (TabPFN-3 works on a transformed casualty rate and returns predictions on the count scale).
+The unit of analysis is the **single storm event**: one row, one event. The target is **`CASUALTY`**, the total number of people injured or killed by the event (direct and indirect). Every model returns the **expected number of casualties for that event**, conditional on its characteristics and on what had already happened earlier the same day, with a Poisson objective (TabPFN-3 works on a transformed casualty rate and returns predictions on the count scale).
 
-Models are ranked on **D2** (Poisson pseudo-R², high = better) and **mean Poisson deviance** (MPD, low = better), the two metrics consistent with the Poisson objective. RMSE appears in the comparison charts but is not used: squared errors are dominated by a handful of catastrophic events. MPD is on the scale of each target, so it compares models within one slice and target, not across them. For the intervals, event-level predictions are summed by day and the 90% adaptive conformal interval is checked against the daily casualty total: **coverage** should sit near 0.90, and **RelWidth** (mean band width over mean daily actual) says how tight the band is.
+Models are ranked on **D2** (Poisson pseudo-R², high = better) and **mean Poisson deviance** (MPD, low = better), the two metrics consistent with the Poisson objective. RMSE appears in the comparison charts but is not used: squared errors are dominated by a handful of catastrophic events. MPD is on the scale of each slice, so it compares models within one slice, not across them. For the intervals, event-level predictions are summed by day and the 90% adaptive conformal interval is checked against the daily casualty total of 2025: **coverage** should sit near 0.90, and **RelWidth** (mean band width over mean daily actual) says how tight the band is.
 
-**How the best model is chosen.** The 2025 test split is a single year. The **backtest** refits every model on five expanding-window folds (train ≤ 2018 → predict 2019, …, train ≤ 2022 → predict 2023), so its mean D2 and mean MPD are the main criterion; the 2025 test and the interval width break ties. On every backtest, D2 and MPD pick the same leading model.
+**How the best model is chosen.** The 2025 test split is a single year. The **backtest** refits every model on five expanding-window folds (train ≤ 2018 → predict 2019, …, train ≤ 2022 → predict 2023), so its mean D2 and mean MPD are the main criterion; the 2025 test and the interval width break ties. The backtest means are the last column of each comparison chart.
 
-| Slice | Target | Best model | Backtest D2 | Backtest MPD | 2025 test D2 | 2025 test MPD | RelWidth |
+| Slice | Best model | Backtest D2 | Backtest MPD | 2025 test D2 | 2025 test MPD | Coverage | RelWidth |
 |---|---|---|---|---|---|---|---|
-| Global | `INJURIES` | **LightGBM** | 0.31 | 0.292 | 0.41 | 0.163 | 1.94 |
-| Global | `DEATHS` | **Transformer** | 0.64 | 0.095 | 0.69 | 0.065 | 1.72 |
-| Thunderstorm | `INJURIES` | **TabPFN-3** | 0.44 | 0.071 | 0.46 | 0.056 | 3.56 |
-| Thunderstorm | `DEATHS` | **TabPFN-3** | 0.48 | 0.0140 | 0.45 | 0.0154 | 5.06 |
-| Tornado | `INJURIES` | **TabPFN-3** | 0.62 | 1.25 | 0.16 | 0.90 | 3.28 |
-| Tornado | `DEATHS` | **TabPFN-3** | 0.62 | 0.131 | 0.53 | 0.158 | 1.56 |
+| Global | **TabPFN-3** | 0.45 | 0.341 | 0.58 | 0.184 | 0.92 | 2.06 |
+| Thunderstorm | **Transformer** | 0.46 | 0.0775 | 0.50 | 0.0608 | 0.92 | 2.46 |
+| Tornado | **TabPFN-3** | 0.65 | 1.26 | 0.32 | 0.89 | 0.93 | 2.20 |
 
-The conformal and backtest charts below are the transformer's, so its behaviour can be followed across the three slices.
+The 2025 interval charts below are the best model's for each slice: monthly totals of the event-level predictions with the 90% adaptive conformal band, one panel per event group.
 
 ### Global — 11 event groups, 1996–2025
 
-![Point metrics comparison by target and split, global model](images/Global_Models_Comparison_Metrics.png)
+![Point metrics comparison by split and backtest mean, global model](images/Global_Models_Comparison_Metrics.png)
 
-![Conformal coverage and relative width by target, global model](images/Global_Models_Comparison_Conformal.png)
+![Conformal coverage and relative width, global model](images/Global_Models_Comparison_Conformal.png)
 
-| Target | Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
-|---|---|---|---|---|---|---|
-| `INJURIES` | backtest D2 | 0.15 | **0.31** | 0.24 | 0.25 | 0.30 |
-| `INJURIES` | backtest MPD | 0.358 | **0.292** | 0.317 | 0.308 | 0.301 |
-| `INJURIES` | 2025 D2 | 0.23 | 0.41 | 0.36 | **0.54** | 0.36 |
-| `INJURIES` | 2025 MPD | 0.214 | 0.163 | 0.178 | **0.126** | 0.178 |
-| `DEATHS` | backtest D2 | 0.50 | **0.65** | 0.63 | 0.64 | 0.64 |
-| `DEATHS` | backtest MPD | 0.132 | **0.093** | 0.099 | 0.095 | 0.095 |
-| `DEATHS` | 2025 D2 | 0.54 | 0.62 | 0.60 | 0.58 | **0.69** |
-| `DEATHS` | 2025 MPD | 0.095 | 0.078 | 0.082 | 0.086 | **0.065** |
+| Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
+|---|---|---|---|---|---|
+| backtest D2 | 0.32 | 0.43 | 0.39 | **0.45** | 0.42 |
+| backtest MPD | 0.431 | 0.364 | 0.386 | **0.341** | 0.364 |
+| 2025 D2 | 0.41 | 0.56 | 0.42 | **0.58** | 0.57 |
+| 2025 MPD | 0.255 | 0.192 | 0.250 | **0.184** | 0.188 |
+| Coverage | 0.92 | 0.91 | 0.92 | 0.92 | 0.92 |
+| RelWidth | 2.42 | **1.65** | 1.86 | 2.06 | 1.71 |
 
-- **Injuries:** TabPFN-3 wins 2025 on both D2 and MPD, but in the backtest its D2 falls to 0.10 in 2020 and 0.07 in 2022. LightGBM has the best backtest D2 and MPD, with the transformer right behind.
-- **Deaths:** LightGBM, TabPFN-3 and the transformer are level on the backtest (MPD 0.093–0.095). The transformer is clearly ahead on 2025 (MPD 0.065 against 0.078).
-- **Intervals:** coverage is 0.91–0.92 for every model, and LightGBM and the transformer have the tightest bands on both targets.
+- **TabPFN-3 is the best model:** it leads on both backtest metrics and on 2025, and has the lowest backtest MPD in 3 of 5 years (LightGBM wins the other two). The transformer is a close second on 2025 (MPD 0.188).
+- **2023 is hard for every model:** MPD is 0.60–0.86, against 0.20–0.28 in 2019–2021.
+- **Intervals:** coverage is 0.91–0.92 for every model. TabPFN-3 pays for its accuracy with a wider band than LightGBM and the transformer (RelWidth 2.06 against 1.65 and 1.71).
 
-#### Transformer — conformal intervals 2025
+#### TabPFN-3 — conformal intervals by event group, 2025
 
-![Transformer monthly conformal intervals by event group, injuries, 2025, global model](images/Global_Transformer_Conformal_Injuries.png)
+![TabPFN-3 monthly conformal intervals by event group, 2025, global model](images/Global_TabPFN_Conformal_by_Event_2025.png)
 
-![Transformer monthly conformal intervals by event group, deaths, 2025, global model](images/Global_Transformer_Conformal_Deaths.png)
-
-- The well-populated groups (`Winter_Storm`, `Extreme_Heat`, `Cold`, `Coastal_Flood`) are tracked closely, especially on deaths.
-- **Single episodes escape the band:** June `Extreme_Heat` injuries (172 against a ceiling near 40), the January `Wildfire` deaths (58 against about 10) and the July `Flooding` deaths (137 against about 95).
-- `Drought` and `Tropical_Cyclone` record zero casualties in 2025, so their wide flat bands cover the actuals trivially.
-
-#### Transformer — backtest
-
-![Transformer backtest metrics by validation year, injuries, global model](images/Global_Transformer_Backtest_Injuries.png)
-
-![Transformer backtest metrics by validation year, deaths, global model](images/Global_Transformer_Backtest_Deaths.png)
-
-- **Injuries is unstable:** D2 is 0.36–0.42 and MPD 0.13–0.18 in 2019–2021. D2 then falls to 0.06 in 2022, a year that is weak for every model (the LSTM goes negative). MPD reaches 0.68 in 2023 because of one month, August 2023, with about 1,580 injuries; every model shows the same jump (0.63–0.78).
-- **Deaths is steady:** D2 stays between 0.58 and 0.75 and MPD between 0.05 and 0.12 in all five years.
+- **Tracked closely:** `Extreme_Heat` follows the summer peak, `Coastal_Flood`, `Avalanche` and `Dust` stay inside the band almost all year, and the March `Dust` spike (82) is still covered.
+- **Single episodes escape the band:** the January `Wildfire` (84 casualties against a ceiling near 30), the July `Flooding` (140 against about 85) and the June `Extreme_Heat` peak (268 against about 175).
+- **Over-called in winter:** `Winter_Storm` in January (150 predicted, 38 recorded), `Cold` in January–February and `High_Wind` in December fall below the band.
+- `Drought` and `Tropical_Cyclone` record zero casualties in 2025. The model still expects a few, so the bands are wide, and in autumn `Drought` falls just below them.
 
 ### Thunderstorm — 1955–2025
 
-![Point metrics comparison by target and split, thunderstorm model](images/Thunderstorm_Models_Comparison_Metrics.png)
+![Point metrics comparison by split and backtest mean, thunderstorm model](images/Thunderstorm_Models_Comparison_Metrics.png)
 
-![Conformal coverage and relative width by target, thunderstorm model](images/Thunderstorm_Models_Comparison_Conformal.png)
+![Conformal coverage and relative width, thunderstorm model](images/Thunderstorm_Models_Comparison_Conformal.png)
 
-| Target | Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
-|---|---|---|---|---|---|---|
-| `INJURIES` | backtest D2 | 0.20 | 0.39 | 0.39 | **0.44** | 0.39 |
-| `INJURIES` | backtest MPD | 0.101 | 0.078 | 0.076 | **0.071** | 0.076 |
-| `INJURIES` | 2025 D2 | 0.22 | 0.42 | 0.39 | **0.46** | 0.37 |
-| `INJURIES` | 2025 MPD | 0.080 | 0.059 | 0.063 | **0.056** | 0.065 |
-| `DEATHS` | backtest D2 | 0.25 | 0.45 | 0.43 | **0.48** | 0.43 |
-| `DEATHS` | backtest MPD | 0.0202 | 0.0148 | 0.0154 | **0.0140** | 0.0152 |
-| `DEATHS` | 2025 D2 | 0.21 | 0.44 | **0.45** | **0.45** | 0.44 |
-| `DEATHS` | 2025 MPD | 0.0220 | 0.0157 | **0.0153** | 0.0154 | 0.0156 |
+| Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
+|---|---|---|---|---|---|
+| backtest D2 | 0.24 | 0.43 | 0.43 | 0.44 | **0.46** |
+| backtest MPD | 0.1092 | 0.0809 | 0.0814 | 0.0806 | **0.0775** |
+| 2025 D2 | 0.25 | 0.45 | 0.43 | 0.46 | **0.50** |
+| 2025 MPD | 0.0909 | 0.0674 | 0.0698 | 0.0656 | **0.0608** |
+| Coverage | 0.91 | 0.92 | 0.91 | 0.92 | 0.92 |
+| RelWidth | 3.90 | 2.53 | **2.46** | 3.06 | **2.46** |
 
-Backtest and test agree: TabPFN-3 is the most accurate on both D2 and MPD. It has the lowest backtest MPD in 3 of 5 years on injuries and 4 of 5 on deaths. The other nonlinear models are close behind, and the GLM is at about half their D2. Coverage is 0.91–0.92 everywhere. The trade-off is width: TabPFN-3 and the transformer have wider bands than LightGBM and the LSTM, and all bands are relatively wide because thunderstorm casualties are rare per event.
+- **The transformer is the best model:** it leads on every metric, has the lowest backtest MPD in 3 of 5 years (2021–2023), and ties the LSTM for the tightest band.
+- LightGBM, the LSTM and TabPFN-3 are level behind it (backtest MPD 0.0806–0.0814). The GLM is at about half their D2.
+- **2020 is the hardest year for every model** (MPD 0.10–0.16), reflecting that year's outbreaks.
 
-#### Transformer — conformal intervals 2025
+#### Transformer — conformal intervals, 2025
 
-![Transformer monthly conformal intervals, injuries, 2025, thunderstorm model](images/Thunderstorm_Transformer_Conformal_Injuries.png)
+![Transformer monthly conformal intervals, 2025, thunderstorm model](images/Thunderstorm_Transformer_Conformal_2025.png)
 
-![Transformer monthly conformal intervals, deaths, 2025, thunderstorm model](images/Thunderstorm_Transformer_Conformal_Deaths.png)
-
-- The band follows the seasonal shape, peaking in June.
-- **Injuries are over-called in spring:** about 50 injuries predicted per month in March–May against 22–34 recorded, and May falls just below the band.
-- **Deaths stay inside all year.** The June peak (21) touches the ceiling while the prediction is too flat there.
-
-#### Transformer — backtest
-
-![Transformer backtest metrics by validation year, injuries, thunderstorm model](images/Thunderstorm_Transformer_Backtest_Injuries.png)
-
-![Transformer backtest metrics by validation year, deaths, thunderstorm model](images/Thunderstorm_Transformer_Backtest_Deaths.png)
-
-- **No negative year:** D2 is 0.32–0.45 on injuries and 0.38–0.48 on deaths. MPD stays between 0.055 and 0.117 on injuries and between 0.014 and 0.017 on deaths.
-- **The 2020 injuries peak isn't the transformer's.** Every model has its highest MPD in 2020 (0.117–0.161), so it reflects that year's outbreaks.
+- The prediction follows the seasonal shape, rising from March and peaking in June.
+- **Every month is inside the band.** The June–July peak (98 and 84 recorded) is slightly under-called (82 and 64 predicted) and May is over-called (45 against 29), but all stay covered.
 
 ### Tornado — 1950–2025
 
-![Point metrics comparison by target and split, tornado model](images/Tornado_Models_Comparison_Metrics.png)
+![Point metrics comparison by split and backtest mean, tornado model](images/Tornado_Models_Comparison_Metrics.png)
 
-![Conformal coverage and relative width by target, tornado model](images/Tornado_Models_Comparison_Conformal.png)
+![Conformal coverage and relative width, tornado model](images/Tornado_Models_Comparison_Conformal.png)
 
-| Target | Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
-|---|---|---|---|---|---|---|
-| `INJURIES` | backtest D2 | 0.32 | **0.63** | 0.57 | 0.62 | 0.59 |
-| `INJURIES` | backtest MPD | 2.12 | **1.22** | 1.40 | 1.25 | 1.33 |
-| `INJURIES` | 2025 D2 | −0.22 | −0.01 | 0.13 | **0.16** | −0.33 |
-| `INJURIES` | 2025 MPD | 1.31 | 1.09 | 0.94 | **0.90** | 1.42 |
-| `DEATHS` | backtest D2 | 0.27 | 0.60 | 0.56 | **0.62** | 0.61 |
-| `DEATHS` | backtest MPD | 0.249 | 0.142 | 0.157 | **0.131** | 0.139 |
-| `DEATHS` | 2025 D2 | 0.28 | **0.54** | 0.46 | 0.53 | 0.52 |
-| `DEATHS` | 2025 MPD | 0.241 | **0.154** | 0.181 | 0.158 | 0.161 |
+| Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
+|---|---|---|---|---|---|
+| backtest D2 | 0.50 | 0.64 | 0.58 | **0.65** | 0.60 |
+| backtest MPD | 1.77 | 1.26 | 1.45 | **1.26** | 1.34 |
+| 2025 D2 | 0.03 | 0.17 | 0.18 | **0.32** | 0.15 |
+| 2025 MPD | 1.27 | 1.08 | 1.07 | **0.89** | 1.11 |
+| Coverage | 0.92 | 0.93 | 0.93 | 0.93 | 0.93 |
+| RelWidth | 3.86 | 2.73 | 2.35 | **2.20** | 2.48 |
 
-- **Injuries:** LightGBM and TabPFN-3 are level on the backtest (MPD 1.22 against 1.25), and every model collapses on 2025. TabPFN-3 is the only one that stays positive on D2 and has the lowest 2025 MPD (0.90 against 1.09 for LightGBM).
-- **Deaths:** TabPFN-3 has the lowest backtest MPD, best in 3 of 5 years. On 2025, LightGBM, TabPFN-3 and the transformer are within 0.007 MPD, and the transformer has by far the tightest bands (RelWidth 1.07).
+- **TabPFN-3 is the best model:** it is level with LightGBM on the backtest (MPD 1.259 against 1.261, D2 0.65 against 0.64) and clearly ahead on 2025 (D2 0.32 against 0.15–0.18 for the other nonlinear models), with the tightest band.
+- **2025 is a hard year for every model:** D2 drops from 0.58–0.65 on the backtest to 0.15–0.32, and the GLM is close to zero (0.03).
 - Coverage is 0.92–0.93 for every model.
 
-#### Transformer — conformal intervals 2025
+#### TabPFN-3 — conformal intervals, 2025
 
-![Transformer monthly conformal intervals, injuries, 2025, tornado model](images/Tornado_Transformer_Conformal_Injuries.png)
+![TabPFN-3 monthly conformal intervals, 2025, tornado model](images/Tornado_TabPFN_Conformal_2025.png)
 
-![Transformer monthly conformal intervals, deaths, 2025, tornado model](images/Tornado_Transformer_Conformal_Deaths.png)
+- **The spring outbreak season is over-called:** 252 casualties predicted in March against 101 recorded, and 104 in April against 63. March sits on the lower edge of the band.
+- **May is on target** (115 predicted, 118 recorded), and the quiet months from June to December are near zero and well covered.
+- The band is widest in March (up to about 390): that is when a single outbreak can move the monthly total by hundreds of casualties.
 
-- **Something is wrong on injuries.** The transformer predicts about 500 injuries in March and 290 in May against 80 and 93 recorded, and both months fall below the band.
-- **This matches how it was trained.** Early stopping kept the first epoch, the backtest folds are also trained for a single epoch, and the 2025 test D2 is −0.33. The tornado-injuries transformer should not be used as it stands.
-- **Deaths are reasonable.** March is over-called (36 predicted, 21 recorded, just below the band) and May's 26 deaths stay inside. The rest of the year is near zero and well covered.
+### From casualties to injuries and deaths
 
-#### Transformer — backtest
-
-![Transformer backtest metrics by validation year, injuries, tornado model](images/Tornado_Transformer_Backtest_Injuries.png)
-
-![Transformer backtest metrics by validation year, deaths, tornado model](images/Tornado_Transformer_Backtest_Deaths.png)
-
-- **Injuries:** D2 is 0.51–0.72 across 2019–2023 and mean MPD 1.33, third behind LightGBM and TabPFN-3. This contrasts with the 2025 failure: a clean backtest does not rule out an under-trained model on a new year.
-- **Deaths:** D2 is 0.50–0.68. 2022 has the weakest D2 for every model, with only 14 death-carrying events, yet the lowest MPD (0.075), simply because the year was quiet. This is why MPD compares models within a year, while D2 is the better read across years.
+Each model predicts one number per event, `CASUALTY`. The `9_…` and `10_…` notebooks check whether it can be split into injuries and deaths **without a second model**, by multiplying the prediction by the share each component holds over the training years (deaths are 24% of casualties on the global slice and 6% on tornado). The split is the same for every model, so it keeps the ranking of the casualty prediction.
 
 ### Takeaways
 
-- **No single model wins everywhere.** TabPFN-3 is the best choice on thunderstorm and tornado. On the global slice, LightGBM is best for injuries and the transformer for deaths.
-- **The transformer is competitive, not dominant.** It is best on global deaths and has the tightest tornado deaths bands, but its tornado injuries model is under-trained and fails on 2025.
-- **The GLM is the floor.** It is interpretable and stable, but it trails on every slice and goes negative where data is thinnest.
+- **No single model wins everywhere.** TabPFN-3 is the best choice on the global and tornado slices, the transformer on thunderstorm.
+- **The transformer is competitive on every slice.** It is best on thunderstorm and a close second on global 2025.
+- **The GLM is the floor.** It is interpretable and stable, but it trails on every slice and falls to D2 0.03 on tornado 2025.
 - **Intervals are calibrated everywhere** (coverage 0.91–0.93). What they cannot catch are single catastrophic episodes: heat waves, wildfires, flash floods and outbreak months.
-- **D2 and MPD agree.** They pick the same leading model on every backtest and on every 2025 test. Where the backtest and 2025 disagree, the cause is the year, not the metric.
-- **One test year can mislead.** Test, backtest and the monthly interval charts must be read together.
+- **One test year can mislead.** Tornado 2025 is much harder than the backtest years for every model, so test, backtest and the monthly interval charts must be read together.
 
 ## Data files
 
