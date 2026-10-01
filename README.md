@@ -195,34 +195,14 @@ Two correlations are reported because they answer different questions. **Pearson
 
 "Large events" are those with more than 100 casualties. "P(deaths > 0 given injuries > 0)" is the share of events with injuries that also have deaths. "Death share" is deaths over all casualties.
 
-The second table is for the training years: among the events that injured someone, how often they also killed someone, by number of people injured.
-
-| Injuries per event | Global: events | Global: share with at least one death | Global: mean deaths | Thunderstorm: events | Thunderstorm: share with at least one death | Thunderstorm: mean deaths | Tornado: events | Tornado: share with at least one death | Tornado: mean deaths |
-|---|---|---|---|---|---|---|---|---|---|
-| 1–5 | 5,799 | 0.234 | 0.312 | 7,733 | 0.078 | 0.092 | 6,045 | 0.076 | 0.119 |
-| 6–20 | 987 | 0.229 | 0.593 | 501 | 0.136 | 0.244 | 1,715 | 0.288 | 0.582 |
-| 21–100 | 349 | 0.298 | 1.135 | 66 | 0.182 | 0.333 | 721 | 0.641 | 2.505 |
-| >100 | 69 | 0.565 | 4.478 | 2 | 0.500 | 0.500 | 146 | 0.945 | 15.404 |
-
-- **Tornado: injuries and deaths rise together.** Pearson is 0.74 on the training years, and the share of events with at least one death climbs from 0.076 to 0.945 as the number injured grows. Much of that link comes from the largest events: without them Pearson falls to 0.48, and on the 2025 test it is 0.30.
-- **Global: almost no link** (Pearson 0.04, Spearman 0.20). The share of events with at least one death stays between 0.23 and 0.30 up to 100 people injured: the number injured says little about deaths.
+- **Tornado: injuries and deaths rise together.** Pearson is 0.74 on the training years. Much of that link comes from the largest events: without them Pearson falls to 0.48, and on the 2025 test it is 0.30.
+- **Global: almost no link** (Pearson 0.04, Spearman 0.20). An event that injures someone also kills someone in 0.24 of the cases, but the number injured says little about the number of deaths.
 - **Thunderstorm: a weak link** (0.11 and 0.16). Deaths are rare: 0.08 of the events that injure someone also kill someone.
 - **The death share is not stable over time.** From the training years to the 2025 test it goes from 0.24 to 0.49 on the global slice, from 0.11 to 0.20 on thunderstorm and from 0.06 to 0.20 on tornado.
 
-#### How much each category weighs
-
-The share of all casualties held by each category over the training years, and what was recorded in the 2025 test year (number of events with at least one casualty of that category, with the number of people in brackets).
-
-| Category | Global: training share | Global: 2025 events (people) | Thunderstorm: training share | Thunderstorm: 2025 events (people) | Tornado: training share | Tornado: 2025 events (people) |
-|---|---|---|---|---|---|---|
-| Injuries, direct | 0.5807 | 104 (542) | 0.8401 | 127 (232) | 0.9376 | 74 (248) |
-| Injuries, indirect | 0.1830 | 82 (259) | 0.0514 | 13 (41) | 0.0026 | 2 (9) |
-| Deaths, direct | 0.1884 | 271 (504) | 0.0964 | 45 (60) | 0.0594 | 25 (64) |
-| Deaths, indirect | 0.0479 | 154 (253) | 0.0121 | 7 (8) | 0.0004 | 0 (0) |
-
-The split is a fixed proportion: each predicted casualty count is multiplied by the **training share** of the category, and the product is scored against the recorded value. The same shares are applied to every model.
-
 #### 2025 test results by category
+
+The split is a fixed proportion: each predicted casualty count is multiplied by the share the category holds over the **training years**, and the product is scored against the recorded value. The same shares are applied to every model.
 
 Three scores are reported for each category and model. **D2** can be compared across categories. **MPD** cannot, because it is on the scale of each category, so it compares models within one row only. **Ratio** is the total predicted over the total recorded: 1 means the level is right, below 1 the category is under-called, above 1 it is over-called. The best D2 and MPD of each row are in bold.
 
@@ -264,7 +244,7 @@ Three scores are reported for each category and model. **D2** can be compared ac
 | | Ratio | 0.7859 | 0.4923 | 0.4301 | 0.6524 | 0.4966 |
 
 - **The transformer keeps its lead:** it is best on both injury categories and level with TabPFN-3 on direct deaths, the same order as on the casualty target.
-- **The indirect categories are thin:** 13 events with indirect injuries and 7 with indirect deaths in the whole year, and D2 stays at 0.15–0.29.
+- **The indirect categories are harder:** D2 stays at 0.15–0.29, against 0.20–0.48 on the direct ones.
 - **Deaths are under-called here too:** the ratio for direct deaths is 0.46–0.84.
 
 **Tornado**
@@ -284,9 +264,9 @@ Three scores are reported for each category and model. **D2** can be compared ac
 | | MPD | 0.0005 | 0.0004 | 0.0004 | 0.0003 | 0.0003 |
 | | Ratio | NaN | NaN | NaN | NaN | NaN |
 
-- **Direct injuries carry the 2025 miss:** they are the largest category by far, and every model predicts between 2.1 and 3.5 times the recorded number, the same spring over-call seen in the interval chart. D2 is negative for every model except TabPFN-3 (0.16).
+- **Direct injuries carry the 2025 miss:** every model predicts between 2.1 and 3.5 times the recorded number (ratio 2.07–3.55), the same spring over-call seen in the interval chart. D2 is negative for every model except TabPFN-3 (0.16).
 - **Direct deaths are scored well by every model** (D2 0.46–0.52), although the level is low (ratio 0.51–0.87).
-- **The indirect categories cannot be judged:** 2025 has two tornadoes with indirect injuries and none with indirect deaths, so D2 and the ratio for indirect deaths are not defined (NaN).
+- **Indirect deaths cannot be scored:** D2 and the ratio are not defined (NaN), which is what happens when a year has no recorded casualty of that category.
 
 ### Takeaways
 
@@ -305,7 +285,7 @@ The `10_…` notebooks end with a section that opens the transformer and explain
 
 One rule holds throughout: **prediction impact comes first.** Attention shows where the model looks, not what changes the result, so it is read as a description of the mechanism and never as a ranking of feature importance.
 
-The notebooks hold far more than is shown here: six explained events per group, each with four charts. This section reports the conclusions and, for each group, one failure and one well-predicted event chosen as the most representative. Every chart and number comes from the notebooks.
+The notebooks explain six events per group, each with four charts. This section shows, for each group, the whole-year check and then one failure and one well-predicted event chosen as the most representative, each with its local impact, internal routing and Q/K/V charts, plus the reconciliation chart of the failure. The comments under each chart refer only to that chart. Each group closes with conclusions that draw on all six events of the notebook, to give the complete picture.
 
 ### How the transformer reads an event
 
@@ -340,88 +320,186 @@ Three choices apply to every stage:
 
 ### Results: Global
 
-**Conclusions**
-
-- **The event narrative block is what the model depends on most.** Shuffling it over a whole year raises the MPD by about 0.35 in 2024 and 0.24 in 2025, against 0.245 and 0.187 with all the information in place, so the error more than doubles. The reporting source, the geography block and the event group follow at a distance. The same-day context features, the year and the data source add almost nothing.
-- **The single events say the same.** The narrative block is the largest driver in four of the six explained events, including the three well-predicted ones.
-- **The failures are very large events predicted far too low:** 166, 90 and 61 casualties recorded against 0.06, 21.4 and 0.77 predicted.
-- **A prediction is built mostly from combinations.** In both events below, the narrative block alone accounts for a small part of the prediction, and most of it comes from combinations of information, above all the narrative block with the others.
-- **Attention is not importance.** In the failure below, the information the decoder looks at most (events earlier that day in the same state, 28% of its attention) moves the prediction by 0.33, while the duration moves it by 0.63 with 2% of the attention.
+#### The whole year
 
 ![Increase in mean Poisson deviance after shuffling each block of information, global model](images/Global_Transformer_Dependency_MPD.png)
 
-**Failure: Texas, 4 July 2025 (61 recorded, 0.77 predicted)**
+- **The event narrative block comes first.** Shuffling it raises the MPD by about 0.35 in 2024 and 0.24 in 2025, far more than any other piece of information.
+- **The reporting source, the geography block and the event group follow at a distance.** The same-day context features, the year and the data source add almost nothing.
+
+#### Failure: Texas, 4 July 2025 (61 recorded, 0.77 predicted)
 
 ![Local impact of each piece of information, Texas failure case, global model](images/Global_Transformer_Failure_Local_Impact.png)
 
-- **Every piece of information raises the prediction,** the six largest with a stable direction, led by the narrative block (`risk` = high, `event_scope` = county-wide, +0.75). All bars are green: each one moves the prediction towards the recorded count.
-- **The model sees a dangerous event, not a catastrophe.** Similar historical events are predicted at 0.03. The event's own information takes the prediction to 0.77, about 26 times higher, and still 60 casualties short.
+- **Every piece of information raises the prediction,** the six largest with a stable direction: the narrative block (`risk` = high, `event_scope` = county-wide) by 0.75, the duration by 0.63, the geography block by 0.59, the reporting source by 0.44.
+- **All bars are green:** each one moves the prediction towards the recorded count. Together they reach 0.77, against 61 recorded.
 
-**Well-predicted: Oregon, 19 October 2025 (2 recorded, 1.95 predicted)**
+![Reconciliation of the prediction, Texas failure case, global model](images/Global_Transformer_Failure_Reconciliation.png)
+
+- **Similar historical events are predicted at 0.03.** The event's own information takes the prediction to 0.77.
+- **Combinations weigh more than single effects.** Alone, the narrative block adds 0.13 and the geography block 0.13. Together, as a pair, they add another 0.27. Combinations of three or more add 0.14.
+- **The remaining 60.2 casualties are not explained by any input:** they are model error, shown in the title and kept out of the waterfall.
+
+![Internal routing, Texas failure case, global model](images/Global_Transformer_Failure_Routing.png)
+
+- **The narrative block is dominant at every step:** 28.6% of what reaches the summary token through the encoder, 26.5% of the decoder's attention, 16.8% once the attention is weighted by its effect on the prediction.
+- **Attention and impact do not match.** The events earlier that day in the same state receive the largest share of the decoder's attention (28.4%), with a local impact of 0.33. The duration, with an impact of 0.63, receives 2.0%, and the reporting source, with 0.44, receives 1.7%.
+
+![Decoder Q/K/V mechanism, Texas failure case, global model](images/Global_Transformer_Failure_QKV.png)
+
+- **What is delivered depends on two things: being selected and having content.** The narrative block is both selected (26.5%) and rich in content (18.0%), and delivers the most (24.1%).
+- **The events earlier that day in the same state are selected most (28.4%) but carry little content (5.4%).** The geography block is the reverse: selected little (6.8%), rich in content (17.3%), and it still delivers 14.1%.
+
+#### Well-predicted: Oregon, 19 October 2025 (2 recorded, 1.95 predicted)
 
 ![Local impact of each piece of information, Oregon well-predicted case, global model](images/Global_Transformer_Success_Local_Impact.png)
 
 - **The narrative block carries the prediction:** replacing it lowers the prediction by 1.86 of the 1.95, with a stable direction (`risk` = high, `event_scope` = localized).
-- **The same driver as in the failure, on an event of ordinary size.** What the narrative says is enough to get a 2-casualty event right, and not enough to tell a 61-casualty event from it.
+- **The episode narrative (+0.38) and the year (+0.27) add to it,** both with a stable direction. The very short duration takes 0.24 off.
+
+![Internal routing, Oregon well-predicted case, global model](images/Global_Transformer_Success_Routing.png)
+
+- **The narrative block is the largest share reaching the summary token through the encoder (25.3%)** and is dominant in the decoder's attention too (17.3%).
+- **Attention and impact do not match here either.** The episode narrative receives the most attention (27.6%) with an impact of 0.38, a fifth of the narrative block's. The reporting source receives 16.5% with an impact of 0.01.
+
+![Decoder Q/K/V mechanism, Oregon well-predicted case, global model](images/Global_Transformer_Success_QKV.png)
+
+- **The same two-part mechanism as in the failure.** The episode narrative is selected most (27.6%) with little content (5.8%), and delivers 22.5%. The narrative block is even on all three (17.3%, 17.4%, 17.5%). The geography block is selected little (5.8%) but rich in content (16.7%), and delivers 10.3%.
+
+#### Conclusions
+
+These draw on all six events explained in the notebook, not only on the two shown above.
+
+- **The event narrative block is what the model depends on most,** over the whole year and in the single events: it is the largest driver in four of the six explained events, including the three well-predicted ones.
+- **The same driver produces the success and the failure.** What the narrative says is enough to get an ordinary event right, and not enough to tell a 61-casualty event from it.
+- **The three failures are very large events predicted far too low:** 166, 90 and 61 casualties recorded against 0.06, 21.4 and 0.77 predicted.
+- **A prediction is built mostly from combinations of information,** above all the narrative block with the others, more than from any single piece.
+- **Attention is not importance.** The information the decoder looks at most is not the one that moves the prediction most, in the failure and in the success alike.
 
 ### Results: Thunderstorm
 
-**Conclusions**
-
-- **The event narrative block comes first by a wide margin.** Shuffling it raises the MPD by about 0.053 in 2024 and 0.059 in 2025, against 0.060 and 0.061 with all the information in place, so the error about doubles. The reporting source, the event type and the magnitude follow, each below 0.012. Geography matters much less than on the global group.
-- **The single events say the same.** The narrative block is the largest driver in all six explained events.
-- **The failures are single incidents with many victims:** 28, 20 and 14 casualties recorded against 0.32, 2.10 and 0.29 predicted.
-- **The year lowers every prediction.** In all six events, being in 2025 takes something off the prediction with a stable direction: the model associates recent years with fewer casualties per event.
-- **Attention is not importance.** In the failure below, the event type moves the prediction by 1.45 with 0.2% of the decoder's attention. In the well-predicted event, the geography block receives 17.5% of the attention and its effect is small and negative (−0.19).
+#### The whole year
 
 ![Increase in mean Poisson deviance after shuffling each block of information, thunderstorm model](images/Thunderstorm_Transformer_Dependency_MPD.png)
 
-**Failure: South Carolina, 24 June 2025 (20 recorded, 2.10 predicted)**
+- **The event narrative block comes first by a wide margin.** Shuffling it raises the MPD by about 0.053 in 2024 and 0.059 in 2025.
+- **The reporting source, the event type and the magnitude follow,** each below 0.012. The geography block is close to zero.
+
+#### Failure: South Carolina, 24 June 2025 (20 recorded, 2.10 predicted)
 
 ![Local impact of each piece of information, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_Local_Impact.png)
 
-- **Two pieces of information make the prediction:** the narrative block (+1.82) and the event type, lightning (+1.45). Both push in the right direction.
-- **The prediction is a combination.** Similar historical events are predicted at 0.20. The single pieces of information add almost nothing on their own, and combinations of three or more supply 1.3 of the 2.1.
+- **Two pieces of information make the prediction:** the narrative block (+1.82) and the event type, lightning (+1.45). Both are green: they push towards the recorded count.
+- **The year and the month lower it** (−0.13 and −0.35), which takes the prediction further from the recorded count.
 
-**Well-predicted: Florida, 12 July 2025 (3 recorded, 2.77 predicted)**
+![Reconciliation of the prediction, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_Reconciliation.png)
+
+- **Similar historical events are predicted at 0.20.** No single piece of information adds more than 0.04 on its own.
+- **The prediction is a combination.** The narrative block with the event type adds 0.30 as a pair, and combinations of three or more supply 1.3 of the 2.1.
+- **The remaining 17.9 casualties are model error.**
+
+![Internal routing, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_Routing.png)
+
+- **The narrative block is dominant at every step:** 32.7% through the encoder, 28.9% of the decoder's attention, 34.1% once weighted by its effect.
+- **The event type reaches the prediction through the encoder only.** It moves the prediction by 1.45 with 8.7% of what reaches the summary token through the encoder and 0.2% of the decoder's attention.
+
+![Decoder Q/K/V mechanism, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_QKV.png)
+
+- **The decoder reads four pieces of information and ignores the other six.** The narrative block, the geography block, the year and the episode narrative are selected. The others have content to offer (4% to 5% each) but are selected at 0.2% or less, so they deliver almost nothing.
+- **The narrative block delivers 37.4%,** the largest share by far, from 28.9% of the selection and 14.0% of the content.
+
+#### Well-predicted: Florida, 12 July 2025 (3 recorded, 2.77 predicted)
 
 ![Local impact of each piece of information, Florida well-predicted case, thunderstorm model](images/Thunderstorm_Transformer_Success_Local_Impact.png)
 
-- **The same two drivers:** the narrative block (+2.52, stable direction) and the event type, lightning (+0.72).
-- **The same kind of event, a different size.** In both events the model predicts between 2 and 3 casualties for a lightning strike. That is right when three people are hit and far short when twenty are.
+- **The same two drivers as in the failure:** the narrative block (+2.52, stable direction) and the event type, lightning (+0.72).
+- **The year lowers the prediction here too** (−0.26, stable direction), as do the geography block and the episode narrative (−0.19 each).
+
+![Internal routing, Florida well-predicted case, thunderstorm model](images/Thunderstorm_Transformer_Success_Routing.png)
+
+- **The narrative block is dominant again:** 29.0% through the encoder and 24.0% of the decoder's attention.
+- **Attention and impact do not match.** The geography block receives 17.5% of the attention and its impact is small and negative (−0.19). The event type adds 0.72 with 1.2% of the attention, and reaches the summary token through the encoder (9.5%).
+
+![Decoder Q/K/V mechanism, Florida well-predicted case, thunderstorm model](images/Thunderstorm_Transformer_Success_QKV.png)
+
+- **The narrative block delivers the most (26.9%),** from 24.0% of the selection and 14.0% of the content. The geography block follows (15.9%).
+- **The event type delivers 1.0%:** the decoder hardly selects it (1.2%), as in the failure.
+
+#### Conclusions
+
+These draw on all six events explained in the notebook, not only on the two shown above.
+
+- **The event narrative block is what the model depends on most,** over the whole year and in the single events: it is the largest driver in all six explained events.
+- **The same kind of event, a different size.** In the four explained events where lightning is among the main drivers, the model predicts between 2 and 3 casualties. That is right when three people are hit and far short when twenty are.
+- **The three failures are single incidents with many victims:** 28, 20 and 14 casualties recorded against 0.32, 2.10 and 0.29 predicted.
+- **The year lowers every prediction.** In all six events, being in 2025 takes something off the prediction with a stable direction: the model associates recent years with fewer casualties per event.
+- **Attention is not importance.** The event type is the second driver of both events shown and receives almost none of the decoder's attention.
 
 ### Results: Tornado
 
-**Conclusions**
-
-- **The EF scale comes first, far ahead of everything else.** The EF (Enhanced Fujita) scale rates a tornado's strength from EF0 to EF5. Shuffling it raises the 2024 MPD by about 1.2, against 0.99 with all the information in place.
-- **2025 behaves differently from 2024.** The same shuffle raises the 2025 MPD by only about 0.17 (against 1.11), and shuffling path width, path length or distance makes the 2025 predictions slightly better. What the model learned about a tornado's size and strength did not hold that year, which fits the weak 2025 scores of every model on this group.
-- **The single events say the same.** The EF scale is the largest driver in five of the six explained events.
-- **The failures go both ways.** Two EF4 tornadoes are predicted far too high (46.1 against 11 recorded, 47.9 against 17). One tornado recorded as EF0, with a path 1,750 yards wide, is predicted at 0.05 against 42 recorded: the model follows the rating.
-- **Attention is not importance.** In the failure below, the EF scale moves the prediction by 36.8 casualties and receives 2.7% of the decoder's attention. Its effect reaches the summary token through the encoder (13.1%).
+#### The whole year
 
 ![Increase in mean Poisson deviance after shuffling each block of information, tornado model](images/Tornado_Transformer_Dependency_MPD.png)
 
-**Failure: Mississippi, 15 March 2025, EF4 (11 recorded, 46.1 predicted)**
+- **The EF scale comes first, far ahead of everything else.** The EF (Enhanced Fujita) scale rates a tornado's strength from EF0 to EF5. Shuffling it raises the 2024 MPD by about 1.2.
+- **2025 behaves differently from 2024.** The same shuffle raises the 2025 MPD by only about 0.17, and shuffling path width, path length or distance makes the 2025 predictions slightly better: what the model learned about a tornado's size and strength did not hold that year.
+
+#### Failure: Mississippi, 15 March 2025, EF4 (11 recorded, 46.1 predicted)
 
 ![Local impact of each piece of information, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Local_Impact.png)
 
 - **The EF4 rating alone explains the over-call.** With the rating of similar historical tornadoes in its place, the prediction falls by 36.8 of the 46.1. Path width (1,400 yards) adds 4.6 and the geography block 4.1.
-- **Almost every bar is red:** each piece of information pushes the prediction further above the recorded count. The only one pulling it down is the event narrative block.
-- **A direct effect, then pairs with it.** Similar historical tornadoes are predicted at 2.8. The EF4 rating alone adds 23.9, and the four largest pairs, which all include it, add 16.4 more.
+- **Almost every bar is red:** each piece of information pushes the prediction further above the recorded count. The only one pulling it down is the event narrative block (−3.4).
 
-**Well-predicted: Alabama, 15 March 2025, EF3 (4 recorded, 2.68 predicted)**
+![Reconciliation of the prediction, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Reconciliation.png)
+
+- **Similar historical tornadoes are predicted at 2.8.** The EF4 rating alone adds 23.9. No other single piece of information adds more than 0.5.
+- **Then come the pairs with the EF rating:** with the geography block (+7.0), with path width (+6.5), with the month (+1.6) and with the strong tornadoes earlier that day (+1.3), 16.4 in all.
+- **The model is 35.1 casualties above the recorded count,** shown in the title as model error.
+
+![Internal routing, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Routing.png)
+
+- **The clearest case of attention not being importance.** The EF scale moves the prediction by 36.8 casualties and receives 2.7% of the decoder's attention. It reaches the summary token through the encoder (13.1%).
+- **The geography block is what the decoder looks at most** (17.3%), with an impact of 4.1.
+
+![Decoder Q/K/V mechanism, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_QKV.png)
+
+- **The EF scale is hardly selected (2.7%) and delivers 2.7%,** the smallest share of the ten pieces of information.
+- **The geography block delivers the most (17.6%),** followed by the narrative block (9.4%) and the year (8.1%).
+
+#### Well-predicted: Alabama, 15 March 2025, EF3 (4 recorded, 2.68 predicted)
 
 ![Local impact of each piece of information, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_Local_Impact.png)
 
-- **The EF rating again:** EF3 supplies 2.44 of the 2.68, with a stable direction.
-- **The same day, the same driver, one step lower on the scale.** The rule "stronger tornado, more casualties" gives the right answer here and an answer four times too high for the EF4 tornado above.
+- **The EF rating again:** EF3 supplies 2.44 of the 2.68, with a stable direction. Path width (1,000 yards) adds 0.50.
+- **The tornadoes earlier that day lower the prediction** (−0.59, and −0.71 for the strong ones), which takes it further below the recorded count.
+
+![Internal routing, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_Routing.png)
+
+- **The same pattern as in the failure.** The EF scale is the largest share reaching the summary token through the encoder (13.3%), and receives 8.2% of the decoder's attention.
+- **Path width is what the decoder looks at most** (17.5%), with an impact of 0.50, a fifth of the EF rating's.
+
+![Decoder Q/K/V mechanism, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_QKV.png)
+
+- **Path width delivers the most (15.6%)** although its content is small (4.7%): it is the most selected (17.5%).
+- **The EF scale delivers 7.9%,** fourth among the ten pieces of information.
+
+#### Conclusions
+
+These draw on all six events explained in the notebook, not only on the two shown above.
+
+- **The EF scale is what the model depends on most,** over the whole year and in the single events: it is the largest driver in five of the six explained events.
+- **The same day, the same driver, one step lower on the scale.** The rule "stronger tornado, more casualties" gives the right answer for the EF3 tornado and an answer four times too high for the EF4 one.
+- **The failures go both ways.** Two EF4 tornadoes are predicted far too high (46.1 against 11 recorded, 47.9 against 17). One tornado recorded as EF0 is predicted at 0.05 against 42 recorded: the model follows the rating.
+- **The EF rating acts directly and through pairs,** not through large combinations as on the other two groups.
+- **Attention is not importance.** The information with by far the largest effect on the prediction is one the decoder hardly looks at.
 
 ### What the three groups have in common
 
 - **One kind of information leads in each group,** the event narrative block on the global and thunderstorm groups and the EF scale on tornado, and the single events and the whole-year check agree on it.
 - **The same driver produces the successes and the failures.** It gets ordinary events right and misses the extreme ones: too low when an event is far larger than its description suggests, too high when a strong tornado causes few casualties.
 - **Attention is not importance.** Information with a large effect can receive almost no attention: the EF4 rating moves a prediction by 36.8 casualties with 2.7% of the decoder's attention, the lightning event type by 1.45 with 0.2%. Ranking features by attention would have given the wrong answer.
+- **The decoder delivers what is both selected and rich in content.** Information that is selected but carries little content, or the reverse, delivers less than its attention share suggests.
 
 ## Data files
 
