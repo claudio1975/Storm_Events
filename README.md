@@ -29,15 +29,16 @@ The scripts and notebooks are numbered in the order they run.
 4. **`4_StormEvents_filling_text_generation_used.py`** Identifies every event missing an `EPISODE_NARRATIVE` or `EVENT_NARRATIVE` and generates the missing text with OpenAI's **`gpt-4o-mini`** through the **Batch API**. Rows that already have both narratives are never sent, and when one narrative exists it is passed to the model as context so the generated text stays consistent with it. The structured fields of the row (event type, state, dates, magnitude, damages, casualties…) are supplied as grounding context so the generated narrative is factual rather than invented.
 5. **`5_StormEvents_embedding_augmentation_used.py`** Encodes the episode and event narratives with the **`all-MiniLM-L12-v2`** sentence-transformer model and applies dimensionality reduction, turning the free text into a compact set of numeric embedding features usable alongside the tabular columns. Embeddings could also be produced through the OpenAI API, GPT-family models, but `gpt-4o-mini` itself is used as a generative endpoint that returns text, not vectors. A local sentence-transformer was preferred here because it is purpose-built for sentence-level embeddings, producing a fixed-length numeric vector that captures each narrative's meaning, exactly the form needed for machine-learning features. 
 
-   One could object that OpenAI's embedding models return richer vectors (1,536 dimensions or more, against MiniLM's 384) and should therefore capture more nuance. In this pipeline that advantage would be lost: the embeddings are not used raw but compressed by TruncatedSVD down to **10 components per narrative** (`ep_embedding_1..10`, `ev_embedding_1..10`), so both models funnel into the same small feature set and the extra dimensions would mostly be discarded. Vector size is also not a quality measure in itself. `all-MiniLM-L12-v2` scores strongly on sentence-similarity benchmarks despite its compact size, and the storm narratives are short weather descriptions that a compact model represents well. For this use case the larger vectors would add API cost and processing time without a measurable gain in the final 10 features.
-6. **`6_StormEvents_feature_augmentation_used.py`** Asks `gpt-4o-mini`, again through the Batch API, to read each `EPISODE_NARRATIVE` and answer two questions, adding one categorical column per answer:
+   One could object that OpenAI's embedding models return richer vectors (1,536 dimensions or more, against MiniLM's 384) and should therefore capture more nuance. In this pipeline that advantage would be lost: the embeddings are not used raw but compressed by TruncatedSVD down to **10 components per narrative** (`ep_embedding_1..10`, `ev_embedding_1..10`), so both models funnel into the same small feature set and the extra dimensions would mostly be discarded. Vector size is also not a quality measure in itself. The two options were not compared in this project: this is a design choice, not a measured result.
+6. **`6_StormEvents_feature_augmentation_used.py`** Asks `gpt-4o-mini`, again through the Batch API, to read each `EPISODE_NARRATIVE` and answer three questions, with one categorical label per answer:
 
    | New column | Question the LLM answers | Possible answers |
    |---|---|---|
    | `risk` | How dangerous was the episode? | high / medium / low |
+   | `impact_type` | What was mainly affected? | casualties / property_damage / crop_damage / infrastructure_disruption / no_significant_impact |
    | `event_scope` | How large an area was affected? | localized / county-wide / regional / widespread |
 
-   Each label is defined explicitly in the system prompt (e.g. `high` = deaths, injuries or major destruction occurred or were clearly likely) so the classification stays consistent across the whole dataset, and the model is instructed to judge only what the text states rather than assume unmentioned impacts.
+   Each label is defined explicitly in the system prompt (e.g. `high` = deaths, injuries or major destruction occurred or were clearly likely) so the classification stays consistent across the whole dataset, and the model is instructed to judge only what the text states rather than assume unmentioned impacts. `impact_type` is not part of the published dataset: the column was dropped before the export of step 7, so the files in `data/` and all the models use only `risk` and `event_scope`.
 7. **`7_export_github.py`** Splits the datasets into compressed Parquet parts small enough for GitHub and writes them to the `data/` folder.
 8. **`8_EDA_used.ipynb`** Exploratory analysis of the final dataset: coverage over time, event-group composition, geography, damage and casualty trends, stationarity and seasonality of the monthly series, and the categorical drivers of impact. Some pictures below come from this notebook.
 9. **`9_Global_estimation_count_v3.ipynb`**, **`9_Thunderstorm_estimation_count_v3.ipynb`**, **`9_Tornado_estimation_count_v3.ipynb`** Three parallel modelling notebooks that share one design and differ only in the slice of the database they cover. The split follows the collection-regime problem described above: Tornado and Thunderstorm have event records long before 1996, so they are modelled separately, while the remaining event groups are modelled together from 1996 onward.
@@ -58,7 +59,7 @@ The scripts and notebooks are numbered in the order they run.
 
 ![Storm events per year](images/Storm_Events_x_Year.png)
 
-The yearly event count is flat and low (a few thousand per year) through the 1950s–1980s, then rises through the early 1990s and **jumps almost fourfold between 1995 and 1996**, from roughly 9,000 to nearly 50,000 events. That vertical wall is not a climate signal: it is the 1996 switch to recording all 48 event types described above. After 1996 the series settles into a genuine range of roughly 50,000–80,000 events per year, with the peaks (2008, 2011, 2023–2025) reflecting real, severe storm seasons.
+The yearly event count stays low and flat from the 1950s through the 1980s, rises in the early 1990s and then **jumps between 1995 and 1996**, the largest one-year change of the whole series. That vertical wall is not a climate signal: it is the 1996 switch to recording all 48 event types described above. After 1996 the series stays at a much higher level, between the 40,000 and the 80,000 lines of the chart, with its highest points around 2008, 2011 and in the most recent years.
 
 ### Composition by event group
 
@@ -66,17 +67,15 @@ The yearly event count is flat and low (a few thousand per year) through the 195
 
 The 56 raw NOAA event types are collapsed into 17 broader **event groups**. The chart shows how many rows each group holds and the first/last year it appears, and it makes two things immediately clear.
 
-First, the distribution is extremely **imbalanced**. `Thunderstorm` alone accounts for about 1.03 million rows, more than half the dataset. At the other end, `Geomagnetic` has 8 rows, `Tsunami` 52 and `Volcanic` 147. 
+First, the distribution is extremely **imbalanced**. `Thunderstorm` alone has 1,032,841 rows, far more than any other group (the second, `Winter_Storm`, has 281,745). At the other end, `Geomagnetic` has 8 rows, `Tsunami` 52 and `Volcanic` 147.
 
-Second, the **start years confirm the collection-regime story**: `Tornado` starts in 1950 and `Thunderstorm` in 1955, while nearly every other group starts in exactly 1996. A few start even later simply because the phenomenon is rare or was catalogued later (`Marine_Other` 2002, `Tsunami` 2006).
+Second, the **start years confirm the collection-regime story**: `Tornado` starts in 1950 and `Thunderstorm` in 1955, while most other groups start in exactly 1996. A few start later (`Volcanic` 1997, `Geomagnetic` 2001, `Marine_Other` 2002, `Tsunami` 2006).
 
 ### Geographic distribution
 
 ![Storm event locations, 60,000 sampled points](images/Storm_Event_Location.png)
 
-A 60,000-point sample of event coordinates over the continental U.S. The density map matches known U.S. severe-weather climatology: a dense core across the Great Plains and the Midwest into the Southeast (Tornado Alley and Dixie Alley), heavy coverage along the Gulf and Atlantic coasts and the Florida peninsula, and a comparatively sparse, clustered West where events concentrate around populated valleys and mountain corridors.
-
-Part of that east/west contrast is meteorological and part is **reporting bias**: storm events are recorded when someone observes and reports them, so sparsely populated areas generate fewer records for the same weather. 
+A 60,000-point sample of event coordinates over the continental U.S. The points are dense from the central Plains eastward to the Atlantic coast, along the Gulf coast and on the Florida peninsula. The West is comparatively sparse, with the events concentrated in a few clusters.
 
 ## Casualty-Count Modeling results
 
@@ -86,11 +85,13 @@ Models are ranked on **D2** (Poisson pseudo-R², high = better) and **mean Poiss
 
 **How the best model is chosen.** The 2025 test split is a single year. The **backtest** refits every model on five expanding-window folds (train ≤ 2018 → predict 2019, …, train ≤ 2022 → predict 2023), so its mean D2 and mean MPD are the main criterion; the 2025 test and the interval width break ties. The backtest means are the last column of each comparison chart.
 
+The values in the tables below are those of the result tables in the `9_…` and `10_…` notebooks. The comparison charts, from the `11_…` notebooks, show the same values with two decimals.
+
 | Slice | Best model | Backtest D2 | Backtest MPD | 2025 test D2 | 2025 test MPD | Coverage | RelWidth |
 |---|---|---|---|---|---|---|---|
-| Global | **TabPFN-3** | 0.45 | 0.341 | 0.58 | 0.184 | 0.92 | 2.06 |
-| Thunderstorm | **Transformer** | 0.46 | 0.0775 | 0.50 | 0.0608 | 0.92 | 2.46 |
-| Tornado | **TabPFN-3** | 0.65 | 1.26 | 0.32 | 0.89 | 0.93 | 2.20 |
+| Global | **TabPFN-3** | 0.4471 | 0.3410 | 0.5768 | 0.1841 | 0.9151 | 2.0646 |
+| Thunderstorm | **Transformer** | 0.4624 | 0.0775 | 0.5003 | 0.0608 | 0.9171 | 2.4618 |
+| Tornado | **TabPFN-3** | 0.6481 | 1.2588 | 0.3163 | 0.8927 | 0.9250 | 2.2011 |
 
 The 2025 interval charts below are the best model's for each slice: monthly totals of the event-level predictions with the 90% adaptive conformal band, one panel per event group.
 
@@ -102,26 +103,26 @@ The 2025 interval charts below are the best model's for each slice: monthly tota
 
 | Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
 |---|---|---|---|---|---|
-| backtest D2 | 0.316 | 0.428 | 0.389 | 0.447 | **0.452** |
-| backtest MPD | 0.431 | 0.364 | 0.386 | **0.341** | 0.351 |
-| 2025 D2 | 0.41 | 0.56 | 0.42 | **0.58** | 0.57 |
-| 2025 MPD | 0.255 | 0.192 | 0.250 | **0.184** | 0.187 |
-| Coverage | 0.92 | 0.91 | 0.92 | 0.92 | 0.92 |
-| RelWidth | 2.42 | **1.65** | 1.86 | 2.06 | 1.75 |
+| backtest D2 | 0.3163 | 0.4277 | 0.3894 | 0.4471 | **0.4516** |
+| backtest MPD | 0.4305 | 0.3638 | 0.3860 | **0.3410** | 0.3509 |
+| 2025 D2 | 0.4136 | 0.5595 | 0.4242 | **0.5768** | 0.5706 |
+| 2025 MPD | 0.2550 | 0.1916 | 0.2504 | **0.1841** | 0.1867 |
+| Coverage | 0.9233 | 0.9123 | 0.9178 | 0.9151 | 0.9151 |
+| RelWidth | 2.4207 | **1.6469** | 1.8571 | 2.0646 | 1.7532 |
 
-- **TabPFN-3 is the best model, by a narrow margin:** it has the lowest backtest MPD (0.341) and leads on both 2025 metrics.
-- **The transformer is level with it:** it has the highest backtest D2 (0.452 against 0.447), the second-lowest backtest MPD (0.351) and a 2025 score just behind (MPD 0.187 against 0.184). Year by year, the lowest backtest MPD goes to the transformer in 2019 and 2020, to TabPFN-3 in 2021 and 2023, and to LightGBM in 2022.
-- **2023 is hard for every model:** MPD is 0.60–0.86, against 0.18–0.28 in 2019–2021.
-- **Intervals:** coverage is 0.91–0.92 for every model. TabPFN-3 pays for its accuracy with a wider band than LightGBM and the transformer (RelWidth 2.06 against 1.65 and 1.75).
+- **TabPFN-3 is the best model, by a narrow margin:** it has the lowest backtest MPD (0.3410) and leads on both 2025 metrics.
+- **The transformer is level with it:** it has the highest backtest D2 (0.4516 against 0.4471), the second-lowest backtest MPD (0.3509) and a 2025 score just behind (MPD 0.1867 against 0.1841).
+- **Year by year,** in the backtest tables of the notebooks, the lowest MPD alternates between the transformer, TabPFN-3 and LightGBM, and 2023 is the hardest year for every model.
+- **Intervals:** coverage is between 0.91 and 0.92 for every model. TabPFN-3 pays for its accuracy with a wider band than LightGBM and the transformer (RelWidth 2.0646 against 1.6469 and 1.7532).
 
 #### TabPFN-3 — conformal intervals by event group, 2025
 
 ![TabPFN-3 monthly conformal intervals by event group, 2025, global model](images/Global_TabPFN_Conformal_by_Event_2025.png)
 
-- **Tracked closely:** `Extreme_Heat` follows the summer peak, `Coastal_Flood`, `Avalanche` and `Dust` stay inside the band almost all year, and the March `Dust` spike (82) is still covered.
-- **Single episodes escape the band:** the January `Wildfire` (84 casualties against a ceiling near 30), the July `Flooding` (140 against about 85) and the June `Extreme_Heat` peak (268 against about 175).
-- **Over-called in winter:** `Winter_Storm` in January (150 predicted, 38 recorded), `Cold` in January–February and `High_Wind` in December fall below the band.
-- `Drought` and `Tropical_Cyclone` record zero casualties in 2025. The model still expects a few, so the bands are wide, and in autumn `Drought` falls just below them.
+- **Tracked closely:** `Extreme_Heat` follows the summer peak, and `Coastal_Flood`, `Avalanche` and `Dust` stay inside the band almost all year, including the March spike of `Dust`.
+- **Single episodes escape the band:** the recorded line rises above it for `Wildfire` in January, `Flooding` in July and `Extreme_Heat` in June.
+- **Over-called in winter:** for `Winter_Storm` in January, `Cold` in January and February and `High_Wind` in December the recorded line falls below the band.
+- **`Drought` and `Tropical_Cyclone` record zero casualties all year.** The model still expects a few, so the bands are wide, and in autumn the recorded line of `Drought` falls just below its band.
 
 ### Thunderstorm — 1955–2025
 
@@ -131,23 +132,23 @@ The 2025 interval charts below are the best model's for each slice: monthly tota
 
 | Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
 |---|---|---|---|---|---|
-| backtest D2 | 0.24 | 0.43 | 0.43 | 0.44 | **0.46** |
+| backtest D2 | 0.2386 | 0.4289 | 0.4305 | 0.4411 | **0.4624** |
 | backtest MPD | 0.1092 | 0.0809 | 0.0814 | 0.0806 | **0.0775** |
-| 2025 D2 | 0.25 | 0.45 | 0.43 | 0.46 | **0.50** |
+| 2025 D2 | 0.2534 | 0.4465 | 0.4263 | 0.4613 | **0.5003** |
 | 2025 MPD | 0.0909 | 0.0674 | 0.0698 | 0.0656 | **0.0608** |
-| Coverage | 0.91 | 0.92 | 0.91 | 0.92 | 0.92 |
-| RelWidth | 3.90 | 2.53 | **2.46** | 3.06 | **2.46** |
+| Coverage | 0.9116 | 0.9199 | 0.9144 | 0.9171 | 0.9171 |
+| RelWidth | 3.8990 | 2.5273 | **2.4591** | 3.0640 | 2.4618 |
 
-- **The transformer is the best model:** it leads on every metric, has the lowest backtest MPD in 3 of 5 years (2021–2023), and ties the LSTM for the tightest band.
-- LightGBM, the LSTM and TabPFN-3 are level behind it (backtest MPD 0.0806–0.0814). The GLM is at about half their D2.
-- **2020 is the hardest year for every model** (MPD 0.10–0.16), reflecting that year's outbreaks.
+- **The transformer is the best model:** it leads on D2 and on MPD, on the backtest and on 2025 alike. Its band is practically as tight as the LSTM's (RelWidth 2.4618 against 2.4591).
+- **LightGBM, the LSTM and TabPFN-3 are level behind it** (backtest MPD 0.0806–0.0814). The GLM is far behind (backtest D2 0.2386).
+- **Year by year,** in the backtest tables of the notebooks, the transformer has the lowest MPD in three of the five years, and 2020 is the hardest year for every model.
 
 #### Transformer — conformal intervals, 2025
 
 ![Transformer monthly conformal intervals, 2025, thunderstorm model](images/Thunderstorm_Transformer_Conformal_2025.png)
 
-- The prediction follows the seasonal shape, rising from March and peaking in June.
-- **Every month is inside the band.** The June–July peak (98 and 84 recorded) is slightly under-called (82 and 64 predicted) and May is over-called (45 against 29), but all stay covered.
+- **The prediction follows the seasonal shape,** rising from March and peaking in June.
+- **Every month is inside the band.** The June and July peak is slightly under-called and May is over-called, but the recorded line never leaves the band.
 
 ### Tornado — 1950–2025
 
@@ -157,24 +158,24 @@ The 2025 interval charts below are the best model's for each slice: monthly tota
 
 | Metric | GLM | LightGBM | LSTM | TabPFN-3 | Transformer |
 |---|---|---|---|---|---|
-| backtest D2 | 0.50 | 0.64 | 0.58 | **0.65** | 0.60 |
-| backtest MPD | 1.77 | 1.26 | 1.45 | **1.26** | 1.34 |
-| 2025 D2 | 0.03 | 0.17 | 0.18 | **0.32** | 0.15 |
-| 2025 MPD | 1.27 | 1.08 | 1.07 | **0.89** | 1.11 |
-| Coverage | 0.92 | 0.93 | 0.93 | 0.93 | 0.93 |
-| RelWidth | 3.86 | 2.73 | 2.35 | **2.20** | 2.48 |
+| backtest D2 | 0.4982 | 0.6435 | 0.5845 | **0.6481** | 0.6049 |
+| backtest MPD | 1.7696 | 1.2605 | 1.4523 | **1.2588** | 1.3394 |
+| 2025 D2 | 0.0297 | 0.1704 | 0.1770 | **0.3163** | 0.1497 |
+| 2025 MPD | 1.2669 | 1.0832 | 1.0746 | **0.8927** | 1.1102 |
+| Coverage | 0.9194 | 0.9278 | 0.9278 | 0.9250 | 0.9306 |
+| RelWidth | 3.8573 | 2.7275 | 2.3460 | **2.2011** | 2.4836 |
 
-- **TabPFN-3 is the best model:** it is level with LightGBM on the backtest (MPD 1.259 against 1.261, D2 0.65 against 0.64) and clearly ahead on 2025 (D2 0.32 against 0.15–0.18 for the other nonlinear models), with the tightest band.
-- **2025 is a hard year for every model:** D2 drops from 0.58–0.65 on the backtest to 0.15–0.32, and the GLM is close to zero (0.03).
-- Coverage is 0.92–0.93 for every model.
+- **TabPFN-3 is the best model:** it is level with LightGBM on the backtest (MPD 1.2588 against 1.2605, D2 0.6481 against 0.6435) and clearly ahead on 2025 (D2 0.3163, against 0.1497–0.1770 for the other nonlinear models), with the tightest band.
+- **2025 is a hard year for every model:** the D2 of the nonlinear models goes from 0.5845–0.6481 on the backtest to 0.1497–0.3163, and the GLM is close to zero (0.0297).
+- **Coverage is between 0.92 and 0.93 for every model.**
 
 #### TabPFN-3 — conformal intervals, 2025
 
 ![TabPFN-3 monthly conformal intervals, 2025, tornado model](images/Tornado_TabPFN_Conformal_2025.png)
 
-- **The spring outbreak season is over-called:** 252 casualties predicted in March against 101 recorded, and 104 in April against 63. March sits on the lower edge of the band.
-- **May is on target** (115 predicted, 118 recorded), and the quiet months from June to December are near zero and well covered.
-- The band is widest in March (up to about 390): that is when a single outbreak can move the monthly total by hundreds of casualties.
+- **The spring is over-called:** in March and April the predicted line is well above the recorded one, and in March the recorded line sits on the lower edge of the band.
+- **May is on target,** and the quiet months from June to December are near zero and well covered.
+- **The band is widest in March,** the month with the highest prediction.
 
 ### From casualties to injuries and deaths
 
@@ -272,8 +273,8 @@ Three scores are reported for each category and model. **D2** can be compared ac
 
 - **No single model wins everywhere.** TabPFN-3 is the best choice on the global and tornado slices, the transformer on thunderstorm.
 - **The transformer is competitive on every slice.** It is best on thunderstorm and level with TabPFN-3 on global.
-- **The GLM is the floor.** It is interpretable and stable, but it trails on every slice and falls to D2 0.03 on tornado 2025.
-- **Intervals are calibrated everywhere** (coverage 0.91–0.93). What they cannot catch are single catastrophic episodes: heat waves, wildfires, flash floods and outbreak months.
+- **The GLM is the floor.** It is interpretable and stable, but it trails on every slice and falls to a D2 of 0.0297 on tornado 2025.
+- **Intervals are calibrated everywhere** (coverage between 0.91 and 0.93). What they cannot catch are single extreme months, such as the wildfire, flooding and extreme-heat peaks of the global chart.
 - **One test year can mislead.** Tornado 2025 is much harder than the backtest years for every model, so test, backtest and the monthly interval charts must be read together.
 - **Injuries and deaths are closely linked only for tornadoes** (Pearson 0.74, against 0.04 on the global slice and 0.11 on thunderstorm).
 - **A fixed split ranks events well but misses the level when the mix changes.** In 2025 the death share is two to three times the training one, so every model under-calls deaths and over-calls direct injuries.
@@ -285,7 +286,7 @@ The `10_…` notebooks end with a section that opens the transformer and explain
 
 One rule holds throughout: **prediction impact comes first.** Attention shows where the model looks, not what changes the result, so it is read as a description of the mechanism and never as a ranking of feature importance.
 
-The notebooks explain six events per group, each with four charts. This section shows, for each group, the whole-year check and then one failure and one well-predicted event chosen as the most representative, each with its local impact, internal routing and Q/K/V charts, plus the reconciliation chart of the failure. The comments under each chart refer only to that chart. Each group closes with conclusions that draw on all six events of the notebook, to give the complete picture.
+The notebooks explain six events per group, each with four charts. This section shows, for each group, the whole-year check and then one failure and one well-predicted event chosen as the most representative, each with its local impact, internal routing and Q/K/V charts, plus the reconciliation chart of the failure. The comments under each chart describe what that chart shows and use only the numbers printed on it. Each group closes with conclusions that draw on all six events of the notebook, to give the complete picture.
 
 ### How the transformer reads an event
 
@@ -324,8 +325,9 @@ Three choices apply to every stage:
 
 ![Increase in mean Poisson deviance after shuffling each block of information, global model](images/Global_Transformer_Dependency_MPD.png)
 
-- **The event narrative block comes first.** Shuffling it raises the MPD by about 0.35 in 2024 and 0.24 in 2025, far more than any other piece of information.
-- **The reporting source, the geography block and the event group follow at a distance.** The same-day context features, the year and the data source add almost nothing.
+- **The event narrative block comes first.** When it is shuffled the error grows far more than for any other piece of information, in 2024 and in 2025 alike. Over a whole year the model's accuracy rests above all on what the narrative says.
+- **The reporting source, the geography block and the event group follow at a distance,** with bars several times shorter.
+- **The same-day context features, the year and the data source have bars close to zero:** shuffling them leaves the error almost unchanged, so the model barely uses them.
 
 #### Failure: Texas, 4 July 2025 (61 recorded, 0.77 predicted)
 
@@ -360,7 +362,7 @@ Three choices apply to every stage:
 ![Internal routing, Oregon well-predicted case, global model](images/Global_Transformer_Success_Routing.png)
 
 - **The narrative block is the largest share reaching the summary token through the encoder (25.3%)** and is dominant in the decoder's attention too (17.3%).
-- **Attention and impact do not match here either.** The episode narrative receives the most attention (27.6%) with an impact of 0.38, a fifth of the narrative block's. The reporting source receives 16.5% with an impact of 0.01.
+- **Attention and impact do not match here either.** The episode narrative receives the most attention (27.6%) with an impact of 0.38, against 1.86 for the narrative block. The reporting source receives 16.5% with an impact of 0.01.
 
 ![Decoder Q/K/V mechanism, Oregon well-predicted case, global model](images/Global_Transformer_Success_QKV.png)
 
@@ -382,8 +384,9 @@ These draw on all six events explained in the notebook, not only on the two show
 
 ![Increase in mean Poisson deviance after shuffling each block of information, thunderstorm model](images/Thunderstorm_Transformer_Dependency_MPD.png)
 
-- **The event narrative block comes first by a wide margin.** Shuffling it raises the MPD by about 0.053 in 2024 and 0.059 in 2025.
-- **The reporting source, the event type and the magnitude follow,** each below 0.012. The geography block is close to zero.
+- **The event narrative block comes first by a wide margin.** Its two bars are several times longer than any other, and of similar length in 2024 and 2025: the model depends on the narrative in the same way in both years.
+- **The reporting source, the event type and the magnitude follow,** all with short bars.
+- **The geography block and the same-day context features are close to zero:** where the event happened and what happened earlier that day hardly change the error.
 
 #### Failure: South Carolina, 24 June 2025 (20 recorded, 2.10 predicted)
 
@@ -405,7 +408,7 @@ These draw on all six events explained in the notebook, not only on the two show
 
 ![Decoder Q/K/V mechanism, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_QKV.png)
 
-- **The decoder reads four pieces of information and ignores the other six.** The narrative block, the geography block, the year and the episode narrative are selected. The others have content to offer (4% to 5% each) but are selected at 0.2% or less, so they deliver almost nothing.
+- **The decoder reads four pieces of information and ignores the other six.** The narrative block, the geography block, the year and the episode narrative are selected. The others have content to offer, but are selected at 0.2% or less, so they deliver almost nothing.
 - **The narrative block delivers 37.4%,** the largest share by far, from 28.9% of the selection and 14.0% of the content.
 
 #### Well-predicted: Florida, 12 July 2025 (3 recorded, 2.77 predicted)
@@ -441,8 +444,9 @@ These draw on all six events explained in the notebook, not only on the two show
 
 ![Increase in mean Poisson deviance after shuffling each block of information, tornado model](images/Tornado_Transformer_Dependency_MPD.png)
 
-- **The EF scale comes first, far ahead of everything else.** The EF (Enhanced Fujita) scale rates a tornado's strength from EF0 to EF5. Shuffling it raises the 2024 MPD by about 1.2.
-- **2025 behaves differently from 2024.** The same shuffle raises the 2025 MPD by only about 0.17, and shuffling path width, path length or distance makes the 2025 predictions slightly better: what the model learned about a tornado's size and strength did not hold that year.
+- **The EF scale comes first, far ahead of everything else.** The EF (Enhanced Fujita) scale rates a tornado's strength from EF0 to EF5. In 2024 its bar dwarfs every other one: without the rating the error grows enormously.
+- **2025 behaves differently from 2024.** The bar of the EF scale is much shorter in 2025 than in 2024, so the rating helped far less that year.
+- **Some 2025 bars point to the left of zero:** for path width, path length and distance, shuffling makes the 2025 predictions slightly better. What the model learned about a tornado's size did not hold that year.
 
 #### Failure: Mississippi, 15 March 2025, EF4 (11 recorded, 46.1 predicted)
 
@@ -454,7 +458,7 @@ These draw on all six events explained in the notebook, not only on the two show
 ![Reconciliation of the prediction, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Reconciliation.png)
 
 - **Similar historical tornadoes are predicted at 2.8.** The EF4 rating alone adds 23.9. No other single piece of information adds more than 0.5.
-- **Then come the pairs with the EF rating:** with the geography block (+7.0), with path width (+6.5), with the month (+1.6) and with the strong tornadoes earlier that day (+1.3), 16.4 in all.
+- **Then come the pairs with the EF rating:** with the geography block (+7.0), with path width (+6.5), with the month (+1.6) and with the strong tornadoes earlier that day (+1.3).
 - **The model is 35.1 casualties above the recorded count,** shown in the title as model error.
 
 ![Internal routing, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Routing.png)
@@ -477,19 +481,19 @@ These draw on all six events explained in the notebook, not only on the two show
 ![Internal routing, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_Routing.png)
 
 - **The same pattern as in the failure.** The EF scale is the largest share reaching the summary token through the encoder (13.3%), and receives 8.2% of the decoder's attention.
-- **Path width is what the decoder looks at most** (17.5%), with an impact of 0.50, a fifth of the EF rating's.
+- **Path width is what the decoder looks at most** (17.5%), with an impact of 0.50, against 2.44 for the EF rating.
 
 ![Decoder Q/K/V mechanism, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_QKV.png)
 
 - **Path width delivers the most (15.6%)** although its content is small (4.7%): it is the most selected (17.5%).
-- **The EF scale delivers 7.9%,** fourth among the ten pieces of information.
+- **The EF scale delivers 7.9%,** less than path width, the geography block and the narrative block.
 
 #### Conclusions
 
 These draw on all six events explained in the notebook, not only on the two shown above.
 
 - **The EF scale is what the model depends on most,** over the whole year and in the single events: it is the largest driver in five of the six explained events.
-- **The same day, the same driver, one step lower on the scale.** The rule "stronger tornado, more casualties" gives the right answer for the EF3 tornado and an answer four times too high for the EF4 one.
+- **The same day, the same driver, one step lower on the scale.** The rule "stronger tornado, more casualties" gives the right answer for the EF3 tornado and an answer far too high for the EF4 one.
 - **The failures go both ways.** Two EF4 tornadoes are predicted far too high (46.1 against 11 recorded, 47.9 against 17). One tornado recorded as EF0 is predicted at 0.05 against 42 recorded: the model follows the rating.
 - **The EF rating acts directly and through pairs,** not through large combinations as on the other two groups.
 - **Attention is not importance.** The information with by far the largest effect on the prediction is one the decoder hardly looks at.
@@ -506,7 +510,7 @@ These draw on all six events explained in the notebook, not only on the two show
 The `data/` folder contains two datasets, each split into Parquet parts (zstd-compressed) to respect GitHub's file-size limits:
 
 - **`StormEvents_part_1..5.parquet`** The raw merged dataset (output of step 2).
-- **`StormEvents_fe_ep_augmentation_fin_update_part_1..15.parquet`** The final dataset with generated narratives, embedding features, and the LLM-derived columns (output of step 6).
+- **`StormEvents_fe_ep_augmentation_fin_update_part_1..15.parquet`** The final dataset with generated narratives, embedding features, and the LLM-derived columns `risk` and `event_scope` (output of step 6, without `impact_type`).
 
 To reassemble a dataset, concatenate its parts in order:
 
