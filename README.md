@@ -286,7 +286,9 @@ The `10_…` notebooks end with a section that opens the transformer and explain
 
 One rule holds throughout: **prediction impact comes first.** Attention shows where the model looks, not what changes the result, so it is read as a description of the mechanism and never as a ranking of feature importance.
 
-The notebooks explain six events per group, each with four charts. This section shows, for each group, the whole-year check and then one failure and one well-predicted event chosen as the most representative, each with its local impact, internal routing and Q/K/V charts, plus the reconciliation chart of the failure. The comments under each chart describe what that chart shows and use only the numbers printed on it. Each group closes with conclusions that draw on all six events of the notebook, to give the complete picture.
+The notebooks explain six events per group, each with four charts. This section shows, for each group, a check over the whole year and then two single events chosen as the most representative: one failure and one well-predicted event.
+
+Every chart is presented the same way: a **title in bold** that says what the chart is about, then the chart, then a few comments on it. The comments always refer to the chart just above them and use only the numbers printed on it. A line in italics, *How to read it*, explains each kind of chart the first time it appears, in the Global results, and applies to the same kind of chart in the other two groups. Each group closes with conclusions that draw on all six events of the notebook, to give the complete picture.
 
 ### How the transformer reads an event
 
@@ -300,9 +302,11 @@ Attention works through three quantities, usually shortened to **Q/K/V**: the **
 
 ### The process
 
+**The six stages of the process**
+
 ![The six stages of the interpretability process](images/Transformer_Interpretability_Process.png)
 
-The process goes from single events to a whole year, and from "what changes the prediction" to "how the network does it".
+The process goes from single events to a whole year, and from "what changes the prediction" to "how the network does it". The table below is the technical reference for each stage. The results further down repeat, in plain words, how to read each chart.
 
 | Stage | Question | How it is answered | How to read the chart |
 |---|---|---|---|
@@ -317,56 +321,82 @@ Three choices apply to every stage:
 
 - **Information that belongs together moves together.** State, forecast office and time zone form one **geography block** (state and forecast office on thunderstorm). The event narrative embedding and the `risk` and `event_scope` labels read from the narratives form one **event narrative block**. Changing only one of them would create an event that cannot exist, such as a Texas county served by a Florida forecast office.
 - **Replacements are real and similar.** They come from training-year events matched on the other characteristics of the event, such as place, reporting source, duration, same-day context, season and year. The casualties are never used for the matching.
-- **The explanation is checked against the model.** The passes that extract attention and Q/K/V reproduce the model's own predictions (largest difference 0.000002 on the log scale).
+- **The explanation is checked against the model.** The calculation that extracts the attention gives the same predictions as the model itself, and each notebook prints this check.
 
 ### Results: Global
 
 #### The whole year
 
+**Whole-year check: which information the model needs most**
+
+*How to read it: each row is one piece of information. The bar shows how much the model's error grows when that information is scrambled across all the events of a year, blue for 2024 and orange for 2025. A long bar means the model needs that information. A bar near zero means it barely uses it.*
+
 ![Increase in mean Poisson deviance after shuffling each block of information, global model](images/Global_Transformer_Dependency_MPD.png)
 
-- **The event narrative block comes first.** When it is shuffled the error grows far more than for any other piece of information, in 2024 and in 2025 alike. Over a whole year the model's accuracy rests above all on what the narrative says.
+- **The event narrative block comes first.** When it is scrambled the error grows far more than for any other piece of information, in 2024 and in 2025 alike. Over a whole year the model's accuracy rests above all on what the narrative says.
 - **The reporting source, the geography block and the event group follow at a distance,** with bars several times shorter.
-- **The same-day context features, the year and the data source have bars close to zero:** shuffling them leaves the error almost unchanged, so the model barely uses them.
+- **The same-day context features, the year and the data source have bars close to zero:** scrambling them leaves the error almost unchanged, so the model barely uses them.
 
-#### Failure: Texas, 4 July 2025 (61 recorded, 0.77 predicted)
+#### Failure: Texas, 4 July 2025 (61 casualties recorded, 0.77 predicted)
+
+**Local impact: what pushed this prediction up or down**
+
+*How to read it: each row is one piece of information about this event, with its value. The bar shows how much the prediction changes because of it: to the right it raises the prediction, to the left it lowers it. Green means it moved the prediction towards what really happened, red means away from it. The thin line shows how much the answer varies depending on which past event it is compared with, and "stable direction" means it always points the same way.*
 
 ![Local impact of each piece of information, Texas failure case, global model](images/Global_Transformer_Failure_Local_Impact.png)
 
 - **Every piece of information raises the prediction,** the six largest with a stable direction: the narrative block (`risk` = high, `event_scope` = county-wide) by 0.75, the duration by 0.63, the geography block by 0.59, the reporting source by 0.44.
 - **All bars are green:** each one moves the prediction towards the recorded count. Together they reach 0.77, against 61 recorded.
 
+**Reconciliation: how the prediction is built, step by step**
+
+*How to read it: read from top to bottom. The first row is what the model predicts for similar past events. Each following row adds something, and the last row is the prediction. Blue rows are one piece of information on its own, purple rows are two pieces acting together, the brown row is three or more acting together. The numbers on the right are the amount added and the running total.*
+
 ![Reconciliation of the prediction, Texas failure case, global model](images/Global_Transformer_Failure_Reconciliation.png)
 
-- **Similar historical events are predicted at 0.03.** The event's own information takes the prediction to 0.77.
-- **Combinations weigh more than single effects.** Alone, the narrative block adds 0.13 and the geography block 0.13. Together, as a pair, they add another 0.27. Combinations of three or more add 0.14.
-- **The remaining 60.2 casualties are not explained by any input:** they are model error, shown in the title and kept out of the waterfall.
+- **Similar past events are predicted at 0.03.** This event's own information takes the prediction to 0.77.
+- **Information acting together weighs more than each piece alone.** Alone, the narrative block adds 0.13 and the geography block 0.13. Together, as a pair, they add another 0.27. Three or more pieces together add 0.14.
+- **The remaining 60.2 casualties are not explained by any input:** they are the model's error, shown in the title of the chart and kept out of the steps.
+
+**Internal routing: where the information travels inside the model**
+
+*How to read it: three panels, each showing shares that add up to 100%. Left ("Encoder -> CLS"): how much of each piece of information reaches the summary token through the encoder. Middle ("Decoder attention"): how much attention the decoder gives each piece when it produces the prediction. Right ("Attention x gradient"): the same attention, weighted by how much it matters for the result. The words "dominant", "moderate" and "weak" mark large, medium and small shares. These are shares of the traffic inside the model, not casualties.*
 
 ![Internal routing, Texas failure case, global model](images/Global_Transformer_Failure_Routing.png)
 
-- **The narrative block is dominant at every step:** 28.6% of what reaches the summary token through the encoder, 26.5% of the decoder's attention, 16.8% once the attention is weighted by its effect on the prediction.
-- **Attention and impact do not match.** The events earlier that day in the same state receive the largest share of the decoder's attention (28.4%), with a local impact of 0.33. The duration, with an impact of 0.63, receives 2.0%, and the reporting source, with 0.44, receives 1.7%.
+- **The narrative block has a large share in all three panels:** 28.6% on the left, 26.5% in the middle, 16.8% on the right.
+- **Attention and impact do not match.** The events earlier that day in the same state receive the largest share of the decoder attention (28.4%, middle panel), and changed the prediction by 0.33. The duration changed it by 0.63 and receives 2.0% of the decoder attention. The reporting source changed it by 0.44 and receives 1.7%.
+
+**Q/K/V: what the model selects and what it passes on**
+
+*How to read it: three panels again. Left ("Q-K selection"): how much the decoder selects each piece of information. Middle ("V payload"): how much content that piece has to offer. Right ("Delivered V"): what actually gets passed on to the final calculation. A piece of information delivers a lot only if it is both selected and rich in content.*
 
 ![Decoder Q/K/V mechanism, Texas failure case, global model](images/Global_Transformer_Failure_QKV.png)
 
-- **What is delivered depends on two things: being selected and having content.** The narrative block is both selected (26.5%) and rich in content (18.0%), and delivers the most (24.1%).
+- **The narrative block is both selected (26.5%) and rich in content (18.0%),** and delivers the most (24.1%).
 - **The events earlier that day in the same state are selected most (28.4%) but carry little content (5.4%).** The geography block is the reverse: selected little (6.8%), rich in content (17.3%), and it still delivers 14.1%.
 
-#### Well-predicted: Oregon, 19 October 2025 (2 recorded, 1.95 predicted)
+#### Well-predicted: Oregon, 19 October 2025 (2 casualties recorded, 1.95 predicted)
+
+**Local impact: what pushed this prediction up or down**
 
 ![Local impact of each piece of information, Oregon well-predicted case, global model](images/Global_Transformer_Success_Local_Impact.png)
 
 - **The narrative block carries the prediction:** replacing it lowers the prediction by 1.86 of the 1.95, with a stable direction (`risk` = high, `event_scope` = localized).
 - **The episode narrative (+0.38) and the year (+0.27) add to it,** both with a stable direction. The very short duration takes 0.24 off.
 
+**Internal routing: where the information travels inside the model**
+
 ![Internal routing, Oregon well-predicted case, global model](images/Global_Transformer_Success_Routing.png)
 
-- **The narrative block is the largest share reaching the summary token through the encoder (25.3%)** and is dominant in the decoder's attention too (17.3%).
-- **Attention and impact do not match here either.** The episode narrative receives the most attention (27.6%) with an impact of 0.38, against 1.86 for the narrative block. The reporting source receives 16.5% with an impact of 0.01.
+- **The narrative block has the largest share in the left panel (25.3%)** and a large one in the middle panel too (17.3%).
+- **Attention and impact do not match here either.** The episode narrative receives the largest share of the decoder attention (27.6%, middle panel) and changed the prediction by 0.38, against 1.86 for the narrative block. The reporting source receives 16.5% of the decoder attention and changed the prediction by 0.01.
+
+**Q/K/V: what the model selects and what it passes on**
 
 ![Decoder Q/K/V mechanism, Oregon well-predicted case, global model](images/Global_Transformer_Success_QKV.png)
 
-- **The same two-part mechanism as in the failure.** The episode narrative is selected most (27.6%) with little content (5.8%), and delivers 22.5%. The narrative block is even on all three (17.3%, 17.4%, 17.5%). The geography block is selected little (5.8%) but rich in content (16.7%), and delivers 10.3%.
+- **The same mechanism as in the failure.** The episode narrative is selected most (27.6%) with little content (5.8%), and delivers 22.5%. The narrative block is even across the three panels (17.3%, 17.4%, 17.5%). The geography block is selected little (5.8%) but rich in content (16.7%), and delivers 10.3%.
 
 #### Conclusions
 
@@ -375,12 +405,14 @@ These draw on all six events explained in the notebook, not only on the two show
 - **The event narrative block is what the model depends on most,** over the whole year and in the single events: it is the largest driver in four of the six explained events, including the three well-predicted ones.
 - **The same driver produces the success and the failure.** What the narrative says is enough to get an ordinary event right, and not enough to tell a 61-casualty event from it.
 - **The three failures are very large events predicted far too low:** 166, 90 and 61 casualties recorded against 0.06, 21.4 and 0.77 predicted.
-- **A prediction is built mostly from combinations of information,** above all the narrative block with the others, more than from any single piece.
-- **Attention is not importance.** The information the decoder looks at most is not the one that moves the prediction most, in the failure and in the success alike.
+- **A prediction is built mostly from information acting together,** above all the narrative block with the others, more than from any single piece.
+- **Attention is not importance.** The information that receives the most decoder attention is not the one that moves the prediction most, in the failure and in the well-predicted event alike.
 
 ### Results: Thunderstorm
 
 #### The whole year
+
+**Whole-year check: which information the model needs most**
 
 ![Increase in mean Poisson deviance after shuffling each block of information, thunderstorm model](images/Thunderstorm_Transformer_Dependency_MPD.png)
 
@@ -388,40 +420,54 @@ These draw on all six events explained in the notebook, not only on the two show
 - **The reporting source, the event type and the magnitude follow,** all with short bars.
 - **The geography block and the same-day context features are close to zero:** where the event happened and what happened earlier that day hardly change the error.
 
-#### Failure: South Carolina, 24 June 2025 (20 recorded, 2.10 predicted)
+#### Failure: South Carolina, 24 June 2025 (20 casualties recorded, 2.10 predicted)
+
+**Local impact: what pushed this prediction up or down**
 
 ![Local impact of each piece of information, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_Local_Impact.png)
 
 - **Two pieces of information make the prediction:** the narrative block (+1.82) and the event type, lightning (+1.45). Both are green: they push towards the recorded count.
-- **The year and the month lower it** (−0.13 and −0.35), which takes the prediction further from the recorded count.
+- **The year and the month lower it** (−0.13 and −0.35). They are red: they take the prediction further from what happened.
+
+**Reconciliation: how the prediction is built, step by step**
 
 ![Reconciliation of the prediction, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_Reconciliation.png)
 
-- **Similar historical events are predicted at 0.20.** No single piece of information adds more than 0.04 on its own.
-- **The prediction is a combination.** The narrative block with the event type adds 0.30 as a pair, and combinations of three or more supply 1.3 of the 2.1.
-- **The remaining 17.9 casualties are model error.**
+- **Similar past events are predicted at 0.20.** No single piece of information adds more than 0.04 on its own.
+- **The prediction comes from information acting together.** The narrative block with the event type adds 0.30 as a pair, and three or more pieces together supply 1.3 of the 2.1.
+- **The remaining 17.9 casualties are the model's error.**
+
+**Internal routing: where the information travels inside the model**
 
 ![Internal routing, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_Routing.png)
 
-- **The narrative block is dominant at every step:** 32.7% through the encoder, 28.9% of the decoder's attention, 34.1% once weighted by its effect.
-- **The event type reaches the prediction through the encoder only.** It moves the prediction by 1.45 with 8.7% of what reaches the summary token through the encoder and 0.2% of the decoder's attention.
+- **The narrative block has the largest share in all three panels:** 32.7% on the left, 28.9% in the middle, 34.1% on the right.
+- **The event type matters without decoder attention.** It changed the prediction by 1.45, yet it receives 0.2% of the decoder attention (middle panel). It appears only in the left panel, through the encoder (8.7%).
+
+**Q/K/V: what the model selects and what it passes on**
 
 ![Decoder Q/K/V mechanism, South Carolina failure case, thunderstorm model](images/Thunderstorm_Transformer_Failure_QKV.png)
 
-- **The decoder reads four pieces of information and ignores the other six.** The narrative block, the geography block, the year and the episode narrative are selected. The others have content to offer, but are selected at 0.2% or less, so they deliver almost nothing.
+- **The decoder selects four pieces of information and ignores the other six.** In the left panel only the narrative block, the geography block, the year and the episode narrative are selected. The others have content to offer (middle panel) but are selected at 0.2% or less, so in the right panel they deliver almost nothing.
 - **The narrative block delivers 37.4%,** the largest share by far, from 28.9% of the selection and 14.0% of the content.
 
-#### Well-predicted: Florida, 12 July 2025 (3 recorded, 2.77 predicted)
+#### Well-predicted: Florida, 12 July 2025 (3 casualties recorded, 2.77 predicted)
+
+**Local impact: what pushed this prediction up or down**
 
 ![Local impact of each piece of information, Florida well-predicted case, thunderstorm model](images/Thunderstorm_Transformer_Success_Local_Impact.png)
 
 - **The same two drivers as in the failure:** the narrative block (+2.52, stable direction) and the event type, lightning (+0.72).
 - **The year lowers the prediction here too** (−0.26, stable direction), as do the geography block and the episode narrative (−0.19 each).
 
+**Internal routing: where the information travels inside the model**
+
 ![Internal routing, Florida well-predicted case, thunderstorm model](images/Thunderstorm_Transformer_Success_Routing.png)
 
-- **The narrative block is dominant again:** 29.0% through the encoder and 24.0% of the decoder's attention.
-- **Attention and impact do not match.** The geography block receives 17.5% of the attention and its impact is small and negative (−0.19). The event type adds 0.72 with 1.2% of the attention, and reaches the summary token through the encoder (9.5%).
+- **The narrative block has the largest share again:** 29.0% in the left panel and 24.0% in the middle one.
+- **Attention and impact do not match.** The geography block receives 17.5% of the decoder attention and its effect on the prediction is small and negative (−0.19). The event type adds 0.72 with 1.2% of the decoder attention, and appears in the left panel instead, through the encoder (9.5%).
+
+**Q/K/V: what the model selects and what it passes on**
 
 ![Decoder Q/K/V mechanism, Florida well-predicted case, thunderstorm model](images/Thunderstorm_Transformer_Success_QKV.png)
 
@@ -436,52 +482,68 @@ These draw on all six events explained in the notebook, not only on the two show
 - **The same kind of event, a different size.** In the four explained events where lightning is among the main drivers, the model predicts between 2 and 3 casualties. That is right when three people are hit and far short when twenty are.
 - **The three failures are single incidents with many victims:** 28, 20 and 14 casualties recorded against 0.32, 2.10 and 0.29 predicted.
 - **The year lowers every prediction.** In all six events, being in 2025 takes something off the prediction with a stable direction: the model associates recent years with fewer casualties per event.
-- **Attention is not importance.** The event type is the second driver of both events shown and receives almost none of the decoder's attention.
+- **Attention is not importance.** The event type is the second driver of both events shown and receives almost no decoder attention.
 
 ### Results: Tornado
 
 #### The whole year
 
+**Whole-year check: which information the model needs most**
+
 ![Increase in mean Poisson deviance after shuffling each block of information, tornado model](images/Tornado_Transformer_Dependency_MPD.png)
 
 - **The EF scale comes first, far ahead of everything else.** The EF (Enhanced Fujita) scale rates a tornado's strength from EF0 to EF5. In 2024 its bar dwarfs every other one: without the rating the error grows enormously.
 - **2025 behaves differently from 2024.** The bar of the EF scale is much shorter in 2025 than in 2024, so the rating helped far less that year.
-- **Some 2025 bars point to the left of zero:** for path width, path length and distance, shuffling makes the 2025 predictions slightly better. What the model learned about a tornado's size did not hold that year.
+- **Some 2025 bars point to the left of zero:** for path width, path length and distance, scrambling makes the 2025 predictions slightly better. What the model learned about a tornado's size did not hold that year.
 
-#### Failure: Mississippi, 15 March 2025, EF4 (11 recorded, 46.1 predicted)
+#### Failure: Mississippi, 15 March 2025, EF4 (11 casualties recorded, 46.1 predicted)
+
+**Local impact: what pushed this prediction up or down**
 
 ![Local impact of each piece of information, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Local_Impact.png)
 
-- **The EF4 rating alone explains the over-call.** With the rating of similar historical tornadoes in its place, the prediction falls by 36.8 of the 46.1. Path width (1,400 yards) adds 4.6 and the geography block 4.1.
+- **The EF4 rating alone explains the excess.** With the rating of similar past tornadoes in its place, the prediction falls by 36.8 of the 46.1. Path width (1,400 yards) adds 4.6 and the geography block 4.1.
 - **Almost every bar is red:** each piece of information pushes the prediction further above the recorded count. The only one pulling it down is the event narrative block (−3.4).
+
+**Reconciliation: how the prediction is built, step by step**
 
 ![Reconciliation of the prediction, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Reconciliation.png)
 
-- **Similar historical tornadoes are predicted at 2.8.** The EF4 rating alone adds 23.9. No other single piece of information adds more than 0.5.
+- **Similar past tornadoes are predicted at 2.8.** The EF4 rating alone adds 23.9. No other single piece of information adds more than 0.5.
 - **Then come the pairs with the EF rating:** with the geography block (+7.0), with path width (+6.5), with the month (+1.6) and with the strong tornadoes earlier that day (+1.3).
-- **The model is 35.1 casualties above the recorded count,** shown in the title as model error.
+- **The model is 35.1 casualties above the recorded count,** shown in the title of the chart as the model's error.
+
+**Internal routing: where the information travels inside the model**
 
 ![Internal routing, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_Routing.png)
 
-- **The clearest case of attention not being importance.** The EF scale moves the prediction by 36.8 casualties and receives 2.7% of the decoder's attention. It reaches the summary token through the encoder (13.1%).
-- **The geography block is what the decoder looks at most** (17.3%), with an impact of 4.1.
+- **The clearest case of attention not being importance.** The EF scale changes the prediction by 36.8 casualties and receives 2.7% of the decoder attention (middle panel). It appears in the left panel instead, through the encoder (13.1%).
+- **The geography block receives the most decoder attention** (17.3%), and it changed the prediction by 4.1.
+
+**Q/K/V: what the model selects and what it passes on**
 
 ![Decoder Q/K/V mechanism, Mississippi failure case, tornado model](images/Tornado_Transformer_Failure_QKV.png)
 
 - **The EF scale is hardly selected (2.7%) and delivers 2.7%,** the smallest share of the ten pieces of information.
 - **The geography block delivers the most (17.6%),** followed by the narrative block (9.4%) and the year (8.1%).
 
-#### Well-predicted: Alabama, 15 March 2025, EF3 (4 recorded, 2.68 predicted)
+#### Well-predicted: Alabama, 15 March 2025, EF3 (4 casualties recorded, 2.68 predicted)
+
+**Local impact: what pushed this prediction up or down**
 
 ![Local impact of each piece of information, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_Local_Impact.png)
 
 - **The EF rating again:** EF3 supplies 2.44 of the 2.68, with a stable direction. Path width (1,000 yards) adds 0.50.
-- **The tornadoes earlier that day lower the prediction** (−0.59, and −0.71 for the strong ones), which takes it further below the recorded count.
+- **The tornadoes earlier that day lower the prediction** (−0.59, and −0.71 for the strong ones). They are red: they take it further below the recorded count.
+
+**Internal routing: where the information travels inside the model**
 
 ![Internal routing, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_Routing.png)
 
-- **The same pattern as in the failure.** The EF scale is the largest share reaching the summary token through the encoder (13.3%), and receives 8.2% of the decoder's attention.
-- **Path width is what the decoder looks at most** (17.5%), with an impact of 0.50, against 2.44 for the EF rating.
+- **The same pattern as in the failure.** The EF scale has the largest share in the left panel, through the encoder (13.3%), and receives 8.2% of the decoder attention.
+- **Path width receives the most decoder attention** (17.5%), and it changed the prediction by 0.50, against 2.44 for the EF rating.
+
+**Q/K/V: what the model selects and what it passes on**
 
 ![Decoder Q/K/V mechanism, Alabama well-predicted case, tornado model](images/Tornado_Transformer_Success_QKV.png)
 
@@ -495,14 +557,14 @@ These draw on all six events explained in the notebook, not only on the two show
 - **The EF scale is what the model depends on most,** over the whole year and in the single events: it is the largest driver in five of the six explained events.
 - **The same day, the same driver, one step lower on the scale.** The rule "stronger tornado, more casualties" gives the right answer for the EF3 tornado and an answer far too high for the EF4 one.
 - **The failures go both ways.** Two EF4 tornadoes are predicted far too high (46.1 against 11 recorded, 47.9 against 17). One tornado recorded as EF0 is predicted at 0.05 against 42 recorded: the model follows the rating.
-- **The EF rating acts directly and through pairs,** not through large combinations as on the other two groups.
-- **Attention is not importance.** The information with by far the largest effect on the prediction is one the decoder hardly looks at.
+- **The EF rating acts on its own and in pairs,** not through large combinations as on the other two groups.
+- **Attention is not importance.** The information with by far the largest effect on the prediction receives almost no decoder attention.
 
 ### What the three groups have in common
 
 - **One kind of information leads in each group,** the event narrative block on the global and thunderstorm groups and the EF scale on tornado, and the single events and the whole-year check agree on it.
 - **The same driver produces the successes and the failures.** It gets ordinary events right and misses the extreme ones: too low when an event is far larger than its description suggests, too high when a strong tornado causes few casualties.
-- **Attention is not importance.** Information with a large effect can receive almost no attention: the EF4 rating moves a prediction by 36.8 casualties with 2.7% of the decoder's attention, the lightning event type by 1.45 with 0.2%. Ranking features by attention would have given the wrong answer.
+- **Attention is not importance.** Information with a large effect can receive almost no attention: the EF4 rating moves a prediction by 36.8 casualties with 2.7% of the decoder attention, the lightning event type by 1.45 with 0.2%. Ranking information by attention would have given the wrong answer.
 - **The decoder delivers what is both selected and rich in content.** Information that is selected but carries little content, or the reverse, delivers less than its attention share suggests.
 
 ## Data files
